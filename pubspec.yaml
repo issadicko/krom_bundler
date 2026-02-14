@@ -1,0 +1,36 @@
+name: krom_bundler
+description: CLI tool for bundling KromLang scripts with dev server support.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  # KromLang core (local path)
+  krom_script:
+    path: ../krom-lang
+  
+  # CLI framework
+  args: ^2.4.0
+  
+  # HTTP server
+  shelf: ^1.4.0
+  shelf_static: ^1.1.0
+  shelf_web_socket: ^1.0.0
+  
+  # File watching
+  watcher: ^1.1.0
+  
+  # Path utilities
+  path: ^1.8.0
+  
+  # WebSocket
+  web_socket_channel: ^2.4.0
+  
+  # Console colors
+  ansicolor: ^2.0.0
+
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.24.0

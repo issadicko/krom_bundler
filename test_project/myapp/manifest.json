@@ -1,0 +1,23 @@
+{
+  "id": "myapp",
+  "name": "Myapp",
+  "version": "1.0.0",
+  "description": "A KromLang mini-app",
+  "author": "",
+  
+  "entry": "home",
+  
+  "pages": {
+    "home": {
+      "name": "Home",
+      "source": "pages/home.ks",
+      "icon": "home"
+    }
+  },
+  
+  "utils": [
+    "utils/helpers.ks"
+  ],
+  
+  "permissions": []
+}

@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
+import '../utils/logger.dart';
 
 /// Build command - production build from manifest.json
 class BuildCommand extends Command<int> {
@@ -41,27 +44,78 @@ class BuildCommand extends Command<int> {
     final manifestPath = argResults!['manifest'] as String;
     final output = argResults!['output'] as String;
     final optimize = argResults!['optimize'] as bool;
+    final minify = argResults!['minify'] as bool;
+    final timer = Logger.startTimer();
 
-    print('🔨 Building mini-app from $manifestPath...');
-    if (optimize) print('   Optimizations enabled');
+    // Validate manifest exists
+    if (!File(manifestPath).existsSync()) {
+      Logger.bundleError(
+        message: 'Manifest not found: $manifestPath',
+        suggestion:
+            'Run "krom init <name>" to create a new project, or use --manifest to specify the path.',
+      );
+      return 1;
+    }
+
+    Logger.header('Building mini-app');
+    Logger.keyValue('Manifest', manifestPath);
+    Logger.keyValue('Output', output);
+    Logger.keyValue('Optimize', optimize ? 'enabled' : 'disabled');
+    Logger.keyValue('Minify', minify ? 'enabled' : 'disabled');
+    Logger.newline();
 
     try {
+      Logger.step(1, 3, 'Reading manifest...');
       final bundler = ManifestBundler(
         enableOptimizer: optimize,
-        minify: argResults!['minify'] as bool,
+        minify: minify,
       );
+
+      Logger.step(2, 3, 'Bundling pages & components...');
       final result = await bundler.bundleProject(manifestPath);
 
-      // Ensure output directory exists
+      Logger.step(3, 3, 'Writing output...');
       final outFile = File(output);
       await outFile.parent.create(recursive: true);
       await outFile.writeAsString(result);
 
-      print('✅ Build complete: $output');
+      timer.stop();
+
+      // Count pages from the manifest
+      final manifest = await _readManifest(manifestPath);
+      final pageCount = (manifest['pages'] as Map?)?.length ?? 0;
+      final componentCount = (manifest['components'] as Map?)?.length ?? 0;
+
+      Logger.buildSummary(
+        duration: timer.elapsed,
+        pages: pageCount,
+        components: componentCount,
+        outputSize: outFile.lengthSync(),
+        outputPath: output,
+      );
+
+      Logger.success('Build complete!');
       return 0;
-    } catch (e) {
-      print('❌ Build failed: $e');
+    } on BundlerException catch (e) {
+      timer.stop();
+      Logger.bundleError(
+        message: e.message,
+        suggestion: 'Check your KromScript syntax and imports.',
+      );
       return 1;
+    } catch (e) {
+      timer.stop();
+      Logger.error('Build failed: $e');
+      return 1;
+    }
+  }
+
+  Future<Map<String, dynamic>> _readManifest(String path) async {
+    try {
+      final content = await File(path).readAsString();
+      return Map<String, dynamic>.from(jsonDecode(content) as Map);
+    } catch (_) {
+      return {};
     }
   }
 }

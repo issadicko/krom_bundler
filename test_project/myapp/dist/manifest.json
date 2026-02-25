@@ -1,0 +1,16 @@
+{
+  "id": "myapp",
+  "name": "Myapp",
+  "version": "1.0.0",
+  "description": "A KromLang mini-app",
+  "author": "",
+  "entry": "home",
+  "pages": {
+    "home": {
+      "name": "Home",
+      "icon": "home",
+      "script": "fn AppButton(label, color, onTap) {\n  return InkWell({ onTap: onTap, borderRadius: 8 }, [Box({ padding: 16, borderRadius: 8, color: color }, [Text(label, { fontSize: 16, fontWeight: \"bold\", color: \"white\" })])])\n}\nlet counter = Obs(0)\nfn build() {\n  return Box({ color: \"#f5f5f5\", height: \"infinity\", width: \"infinity\" }, [Column({ spacing: 24, mainAxisAlignment: \"center\", crossAxisAlignment: \"center\" }, [Text(\"Welcome to KromLang! 🚀\", { fontSize: 24, fontWeight: \"bold\", color: \"#333\" }), Obx({ builder: \"counterBuilder\" }), Row({ spacing: 12 }, [AppButton(\"Increment\", \"#4CAF50\", \"onIncrement\"), AppButton(\"Decrement\", \"#f44336\", \"onDecrement\")])])])\n}\nfn counterBuilder() {\n  return Text(\"Count: \" + counter.value, { fontSize: 48, fontWeight: \"bold\", color: \"#333\" })\n}\nfn onIncrement() {\n  counter.set(counter.value + 1)\n}\nfn onDecrement() {\n  counter.set(counter.value - 1)\n}\n"
+    }
+  },
+  "permissions": []
+}

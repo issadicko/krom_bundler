@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
+import '../utils/logger.dart';
 
 /// Bundler - bundles KromLang scripts with @use imports
 class Bundler {
@@ -52,7 +53,12 @@ class Bundler {
 
     final file = File(absolutePath);
     if (!await file.exists()) {
-      throw BundlerException('File not found: $filePath');
+      final parent =
+          importStack.length > 1 ? importStack[importStack.length - 2] : null;
+      throw BundlerException(
+        'File not found: $filePath'
+        '${parent != null ? '\n  imported from: $parent' : ''}',
+      );
     }
 
     final source = await file.readAsString();
@@ -161,9 +167,10 @@ class Bundler {
   Future<void> validate(String bundledSource) async {
     final engine = KSEngine();
     final result = await engine.load(bundledSource, enableOptimizer: false);
-    print(result.errors);
     if (!result.success) {
-      throw BundlerException('Validation failed: ${result.errors}');
+      Logger.debug('Validation errors: ${result.errors}');
+      throw BundlerException(
+          'Validation failed:\n  ${result.errors.join('\n  ')}');
     }
   }
 }

@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../server/dev_server.dart';
+import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
+import '../utils/logger.dart';
 
 /// Dev command - starts development server with hot reload
 class DevCommand extends Command<int> {
@@ -36,20 +38,28 @@ class DevCommand extends Command<int> {
   @override
   Future<int> run() async {
     final manifestPath = argResults!['manifest'] as String;
-    final port = int.parse(argResults!['port'] as String);
+    final portStr = argResults!['port'] as String;
     final host = argResults!['host'] as String;
 
-    // Verify manifest exists
-    if (!File(manifestPath).existsSync()) {
-      print('❌ Manifest not found: $manifestPath');
-      print('   Create a manifest.json file to define your mini-app.');
+    // Validate port
+    final port = int.tryParse(portStr);
+    if (port == null || port < 1 || port > 65535) {
+      Logger.bundleError(
+        message: 'Invalid port: $portStr',
+        suggestion: 'Port must be a number between 1 and 65535.',
+      );
       return 1;
     }
 
-    print('🚀 Starting Krom dev server...');
-    print('   Manifest: $manifestPath');
-    print('   URL: http://$host:$port');
-    print('');
+    // Validate manifest exists
+    if (!File(manifestPath).existsSync()) {
+      Logger.bundleError(
+        message: 'Manifest not found: $manifestPath',
+        suggestion:
+            'Run "krom init <name>" to create a new project, or use --manifest to specify the path.',
+      );
+      return 1;
+    }
 
     try {
       final bundler = ManifestBundler();
@@ -62,18 +72,29 @@ class DevCommand extends Command<int> {
 
       await server.start();
 
-      print('✅ Dev server running at http://$host:$port');
-      print('   Watching for changes... (Ctrl+C to stop)');
+      Logger.serverStarted(
+        host: host,
+        port: port,
+        manifestPath: manifestPath,
+      );
 
       // Keep running until interrupted
       await ProcessSignal.sigint.watch().first;
-      
-      print('\n🛑 Shutting down...');
+
+      Logger.newline();
+      Logger.info('Shutting down...');
       await server.stop();
-      
+      Logger.success('Server stopped.');
+
       return 0;
+    } on BundlerException catch (e) {
+      Logger.bundleError(
+        message: e.message,
+        suggestion: 'Fix the error above and restart with "krom dev".',
+      );
+      return 1;
     } catch (e) {
-      print('❌ Dev server failed: $e');
+      Logger.error('Dev server failed: $e');
       return 1;
     }
   }

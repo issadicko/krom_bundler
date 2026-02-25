@@ -1,11 +1,30 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:krom_bundler/krom_bundler.dart';
 
+const String kromVersion = '0.1.0';
+
 void main(List<String> arguments) async {
+  // Handle --version before CommandRunner
+  if (arguments.contains('--version') || arguments.contains('-v')) {
+    print('krom $kromVersion');
+    exit(0);
+  }
+
+  // Handle --verbose globally
+  if (arguments.contains('--verbose')) {
+    Logger.verbose = true;
+    arguments = arguments.where((a) => a != '--verbose').toList();
+  }
+
   final runner = CommandRunner<int>(
     'krom',
-    'Krom Bundler CLI - Bundle and serve KromLang projects',
+    'Krom CLI v$kromVersion — Bundle and serve KromScript projects',
   )
+    ..argParser
+        .addFlag('version', abbr: 'v', negatable: false, help: 'Print version')
+    ..argParser
+        .addFlag('verbose', negatable: false, help: 'Enable verbose output')
     ..addCommand(InitCommand())
     ..addCommand(DevCommand())
     ..addCommand(BuildCommand())
@@ -13,10 +32,13 @@ void main(List<String> arguments) async {
 
   try {
     final result = await runner.run(arguments);
-    if (result != null && result != 0) {
-      throw Exception('Command failed with code $result');
-    }
+    exit(result ?? 0);
   } on UsageException catch (e) {
-    print(e);
+    Logger.error(e.message);
+    Logger.hint(e.usage);
+    exit(64);
+  } catch (e) {
+    Logger.error('$e');
+    exit(1);
   }
 }

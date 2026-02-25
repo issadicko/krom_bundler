@@ -7,21 +7,23 @@ import 'package:krom_script/src/ast/ast_printer.dart';
 import 'bundler.dart';
 
 /// Manifest-based bundler for mini-app projects.
-/// 
+///
 /// Reads a manifest.json, bundles all pages and components,
 /// and generates a final manifest with inline scripts.
 class ManifestBundler {
   final bool enableOptimizer;
   final bool minify;
-  final Bundler _bundler;
 
   ManifestBundler({
-    this.enableOptimizer = false, 
+    this.enableOptimizer = false,
     this.minify = false,
-  }) : _bundler = Bundler(enableOptimizer: false, minify: false);
+  });
+
+  /// Create a fresh Bundler to avoid _processed state leaking between bundles.
+  Bundler _freshBundler() => Bundler(enableOptimizer: false, minify: false);
 
   /// Bundle a mini-app project from its manifest.
-  /// 
+  ///
   /// [manifestPath] - Path to manifest.json
   /// Returns the final manifest JSON as a string.
   Future<String> bundleProject(String manifestPath) async {
@@ -36,22 +38,23 @@ class ManifestBundler {
 
     // Process utils first (they're shared)
     final utils = (manifest['utils'] as List<dynamic>?)?.cast<String>() ?? [];
-    
+
     // Process pages
     final pagesInput = manifest['pages'] as Map<String, dynamic>? ?? {};
     final pagesOutput = <String, dynamic>{};
-    
+
     for (final entry in pagesInput.entries) {
       final pageId = entry.key;
       final pageConfig = entry.value as Map<String, dynamic>;
       final sourcePath = pageConfig['source'] as String?;
-      
+
       if (sourcePath == null) {
         throw BundlerException('Page "$pageId" missing "source" field');
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript = await _bundleWithUtils(fullPath, utils, manifestDir);
+      final bundledScript =
+          await _bundleWithUtils(fullPath, utils, manifestDir);
 
       pagesOutput[pageId] = {
         'name': pageConfig['name'] ?? pageId,
@@ -61,7 +64,8 @@ class ManifestBundler {
     }
 
     // Process components
-    final componentsInput = manifest['components'] as Map<String, dynamic>? ?? {};
+    final componentsInput =
+        manifest['components'] as Map<String, dynamic>? ?? {};
     final componentsOutput = <String, dynamic>{};
 
     for (final entry in componentsInput.entries) {
@@ -70,11 +74,13 @@ class ManifestBundler {
       final sourcePath = componentConfig['source'] as String?;
 
       if (sourcePath == null) {
-        throw BundlerException('Component "$componentId" missing "source" field');
+        throw BundlerException(
+            'Component "$componentId" missing "source" field');
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript = await _bundleWithUtils(fullPath, utils, manifestDir);
+      final bundledScript =
+          await _bundleWithUtils(fullPath, utils, manifestDir);
 
       componentsOutput[componentId] = {
         'name': componentConfig['name'] ?? componentId,
@@ -87,14 +93,17 @@ class ManifestBundler {
       'id': manifest['id'],
       'name': manifest['name'],
       'version': manifest['version'],
-      if (manifest['description'] != null) 'description': manifest['description'],
+      if (manifest['description'] != null)
+        'description': manifest['description'],
       if (manifest['author'] != null) 'author': manifest['author'],
       if (manifest['license'] != null) 'license': manifest['license'],
       'entry': manifest['entry'] ?? pagesOutput.keys.first,
       'pages': pagesOutput,
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
-      if (manifest['permissions'] != null) 'permissions': manifest['permissions'],
-      if (manifest['authorizeUrl'] != null) 'authorizeUrl': manifest['authorizeUrl'],
+      if (manifest['permissions'] != null)
+        'permissions': manifest['permissions'],
+      if (manifest['authorizeUrl'] != null)
+        'authorizeUrl': manifest['authorizeUrl'],
     };
 
     if (minify) {
@@ -105,8 +114,8 @@ class ManifestBundler {
 
   /// Bundle a file with all utils prepended.
   Future<String> _bundleWithUtils(
-    String filePath, 
-    List<String> utils, 
+    String filePath,
+    List<String> utils,
     String manifestDir,
   ) async {
     final buffer = StringBuffer();
@@ -123,7 +132,9 @@ class ManifestBundler {
     }
 
     // Then bundle the main file (which may have its own @use imports)
-    final bundled = await _bundler.bundle(filePath);
+    // Use a fresh bundler to avoid _processed state leaking between bundles
+    final bundler = _freshBundler();
+    final bundled = await bundler.bundle(filePath);
     buffer.writeln('// ===== ${p.basename(filePath)} =====');
     buffer.write(bundled);
 
@@ -140,7 +151,7 @@ class ManifestBundler {
     }
 
     // Validate the bundled output
-    await _bundler.validate(finalSource);
+    await bundler.validate(finalSource);
 
     return finalSource;
   }
@@ -151,21 +162,20 @@ class ManifestBundler {
       final lexer = Lexer(source);
       final parser = Parser(lexer);
       final program = parser.parseProgram();
-      
+
       if (parser.errors().isNotEmpty) {
-         throw BundlerException('Syntax Error(s) detected:\n${parser.errors().join('\n')}');
+        throw BundlerException(
+            'Syntax Error(s) detected:\n${parser.errors().join('\n')}');
       }
 
       final optimizer = Optimizer(
-        enableTreeShaking: true,
-        enableInlining: true, 
-        enableConstantPropagation: true,
-        enableDeadCodeElimination: true
-      );
+          enableTreeShaking: true,
+          enableInlining: true,
+          enableConstantPropagation: true,
+          enableDeadCodeElimination: true);
       final optimizedProgram = optimizer.optimize(program);
       final printer = ASTPrinter();
       return printer.print(optimizedProgram);
-
     } catch (e) {
       if (e is BundlerException) rethrow;
       throw BundlerException('Optimization failed: $e');
@@ -175,23 +185,19 @@ class ManifestBundler {
   /// Minify code (remove all unnecessary whitespace)
   String _minify(String source) {
     var result = source;
-    
+
     // Remove all comments
     result = result.replaceAll(RegExp(r'//.*$', multiLine: true), '');
-    
+
     // Remove newlines and extra spaces
     result = result.replaceAll(RegExp(r'\s+'), ' ');
-    
+
     // Remove spaces around operators and punctuation
     result = result.replaceAllMapped(
-      RegExp(r'\s*([{}()\[\],;:])\s*'), 
-      (m) => '${m[1]}'
-    );
+        RegExp(r'\s*([{}()\[\],;:])\s*'), (m) => '${m[1]}');
     result = result.replaceAllMapped(
-      RegExp(r'\s*([=+\-*/<>!&|])\s*'), 
-      (m) => '${m[1]}'
-    );
-    
+        RegExp(r'\s*([=+\-*/<>!&|])\s*'), (m) => '${m[1]}');
+
     return result.trim();
   }
 }

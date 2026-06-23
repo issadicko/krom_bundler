@@ -45,9 +45,19 @@ class ManifestBundler {
     // Process utils first (they're shared)
     final utils = (manifest['utils'] as List<dynamic>?)?.cast<String>() ?? [];
 
-    // Process pages
+    // Build the page -> subpackage-root assignment up front. A page listed in
+    // a subpackage is bundled into that subpackage only; every other page
+    // stays in the main package. This is the actual 分包 (subpackage) split
+    // that enables on-demand loading, TCMPP/WeChat-style.
+    final rawSubpackages = manifest['subpackages'] ?? manifest['subPackages'];
+    final pageToSubpackage = _pageToSubpackageRoot(rawSubpackages);
+
+    // Process pages, partitioning compiled output between the main package and
+    // each subpackage. A page is never emitted in more than one place.
     final pagesInput = manifest['pages'] as Map<String, dynamic>? ?? {};
     final pagesOutput = <String, dynamic>{};
+    // root -> { pageId -> compiledPage }
+    final subpackagePages = <String, Map<String, dynamic>>{};
 
     for (final entry in pagesInput.entries) {
       final pageId = entry.key;
@@ -62,11 +72,18 @@ class ManifestBundler {
       final bundledScript =
           await _bundleWithUtils(fullPath, utils, manifestDir);
 
-      pagesOutput[pageId] = {
+      final compiledPage = <String, dynamic>{
         'name': pageConfig['name'] ?? pageId,
         if (pageConfig['icon'] != null) 'icon': pageConfig['icon'],
         'script': bundledScript,
       };
+
+      final root = pageToSubpackage[pageId];
+      if (root != null) {
+        (subpackagePages[root] ??= <String, dynamic>{})[pageId] = compiledPage;
+      } else {
+        pagesOutput[pageId] = compiledPage;
+      }
     }
 
     // Process components
@@ -94,6 +111,25 @@ class ManifestBundler {
       };
     }
 
+    // Build the output subpackages: one entry per declared root, carrying its
+    // own compiled pages. The runtime loads these on demand; pages here are
+    // intentionally absent from the top-level "pages" map above.
+    final subpackagesOutput = _buildSubpackagesOutput(
+      rawSubpackages,
+      subpackagePages,
+    );
+
+    // The main package's entry must live in the main package, never inside a
+    // subpackage (TCMPP requires the entry page to load eagerly).
+    final entry = manifest['entry'] ??
+        (pagesOutput.isNotEmpty ? pagesOutput.keys.first : null);
+    if (entry is String && pageToSubpackage.containsKey(entry)) {
+      throw BundlerException(
+          'Entry page "$entry" cannot be inside subpackage '
+          '"${pageToSubpackage[entry]}"; the entry must stay in the main '
+          'package so it loads on startup.');
+    }
+
     // Build final manifest
     final outputManifest = <String, dynamic>{
       'id': manifest['id'],
@@ -103,7 +139,7 @@ class ManifestBundler {
         'description': manifest['description'],
       if (manifest['author'] != null) 'author': manifest['author'],
       if (manifest['license'] != null) 'license': manifest['license'],
-      'entry': manifest['entry'] ?? pagesOutput.keys.first,
+      if (entry != null) 'entry': entry,
       'pages': pagesOutput,
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
       if (manifest['permissions'] != null)
@@ -116,16 +152,70 @@ class ManifestBundler {
       if (manifest['tabBar'] != null) 'tabBar': manifest['tabBar'],
       if (manifest['networkTimeout'] != null)
         'networkTimeout': manifest['networkTimeout'],
-      if (manifest['subpackages'] != null)
-        'subpackages': manifest['subpackages'],
-      if (manifest['subPackages'] != null)
-        'subpackages': manifest['subPackages'],
+      if (subpackagesOutput.isNotEmpty) 'subpackages': subpackagesOutput,
     };
 
     if (minify) {
       return jsonEncode(outputManifest);
     }
     return const JsonEncoder.withIndent('  ').convert(outputManifest);
+  }
+
+  /// Flatten the declared subpackages into a `pageId -> root` lookup.
+  ///
+  /// Returns an empty map when there are no subpackages. The structure has
+  /// already been validated by [ManifestValidator], so this assumes
+  /// well-formed `{ root, pages: [...] }` entries.
+  Map<String, String> _pageToSubpackageRoot(dynamic subpackages) {
+    final result = <String, String>{};
+    if (subpackages is! List) return result;
+    for (final pkg in subpackages) {
+      if (pkg is! Map) continue;
+      final root = pkg['root'];
+      final pages = pkg['pages'];
+      if (root is! String || pages is! List) continue;
+      for (final page in pages) {
+        if (page is String) result[page] = root;
+      }
+    }
+    return result;
+  }
+
+  /// Build the output `subpackages` list: each entry keeps its `root` (and any
+  /// extra metadata the author set) and gains a `pages` map of *compiled*
+  /// pages — exactly the pages that were pulled out of the main package.
+  ///
+  /// Output shape:
+  /// ```json
+  /// "subpackages": [
+  ///   { "root": "packageStats",
+  ///     "pages": { "stats_detail": { "name": ..., "script": ... } } }
+  /// ]
+  /// ```
+  List<Map<String, dynamic>> _buildSubpackagesOutput(
+    dynamic rawSubpackages,
+    Map<String, Map<String, dynamic>> subpackagePages,
+  ) {
+    final output = <Map<String, dynamic>>[];
+    if (rawSubpackages is! List) return output;
+
+    for (final pkg in rawSubpackages) {
+      if (pkg is! Map) continue;
+      final root = pkg['root'];
+      if (root is! String) continue;
+
+      // Preserve any author-provided metadata (e.g. independent, plugins),
+      // but replace the raw page-id list with the compiled pages map.
+      final entry = <String, dynamic>{};
+      for (final e in pkg.entries) {
+        if (e.key == 'pages' || e.key == 'root') continue;
+        entry[e.key.toString()] = e.value;
+      }
+      entry['root'] = root;
+      entry['pages'] = subpackagePages[root] ?? <String, dynamic>{};
+      output.add(entry);
+    }
+    return output;
   }
 
   /// Bundle a file with all utils prepended.

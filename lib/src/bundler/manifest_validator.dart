@@ -245,6 +245,11 @@ class ManifestValidator {
     }
 
     final seenRoots = <String>{};
+    // Tracks which subpackage root already claimed a given page, so we can
+    // reject a page that appears in two subpackages (a page may belong to at
+    // most one subpackage; everything else stays in the main package).
+    final pageOwner = <String, String>{};
+
     for (var i = 0; i < subpackages.length; i++) {
       final pkg = subpackages[i];
       final where = 'subpackages[$i]';
@@ -254,13 +259,17 @@ class ManifestValidator {
       }
 
       final root = pkg['root'];
+      String? rootStr;
       if (root == null) {
         errors.add('"$where.root" is required.');
       } else if (root is! String || root.isEmpty) {
         errors.add('"$where.root" must be a non-empty string.');
-      } else if (!seenRoots.add(root)) {
-        errors.add('"$where.root" duplicates another subpackage root '
-            '("$root").');
+      } else {
+        rootStr = root;
+        if (!seenRoots.add(root)) {
+          errors.add('"$where.root" duplicates another subpackage root '
+              '("$root").');
+        }
       }
 
       final pkgPages = pkg['pages'];
@@ -272,8 +281,27 @@ class ManifestValidator {
         errors.add('"$where.pages" must contain at least one page.');
       } else {
         for (var j = 0; j < pkgPages.length; j++) {
-          if (pkgPages[j] is! String) {
+          final page = pkgPages[j];
+          if (page is! String) {
             errors.add('"$where.pages[$j]" must be a string.');
+            continue;
+          }
+          // Every referenced page must be declared in the top-level "pages"
+          // map. We only enforce this when the page set is known (it always
+          // is during a real build); an empty set means "unknown", so we skip
+          // the existence check to keep pure-schema validation flexible.
+          if (pages.isNotEmpty && !pages.contains(page)) {
+            errors.add('"$where.pages[$j]" refers to "$page" which is not '
+                'declared in "pages" (known pages: ${pages.join(', ')}).');
+          }
+          // A page can belong to exactly one subpackage.
+          final previousOwner = pageOwner[page];
+          if (previousOwner != null) {
+            errors.add('"$where.pages[$j]" assigns page "$page" to subpackage '
+                '"${rootStr ?? '<invalid>'}", but it is already in subpackage '
+                '"$previousOwner". A page may belong to only one subpackage.');
+          } else if (rootStr != null) {
+            pageOwner[page] = rootStr;
           }
         }
       }

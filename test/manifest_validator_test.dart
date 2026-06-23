@@ -12,6 +12,8 @@ void main() {
           'pages': {
             'home': {'name': 'Home', 'source': 'pages/home.ks'},
             'stats': {'name': 'Stats', 'source': 'pages/stats.ks'},
+            'detail': {'name': 'Detail', 'source': 'pages/detail.ks'},
+            'export': {'name': 'Export', 'source': 'pages/export.ks'},
           },
         };
 
@@ -44,7 +46,7 @@ void main() {
           'subpackages': [
             {
               'root': 'pkgA',
-              'pages': ['a/one', 'a/two'],
+              'pages': ['detail', 'export'],
             },
           ],
         });
@@ -184,11 +186,11 @@ void main() {
           ..['subpackages'] = [
             {
               'root': 'pkg',
-              'pages': ['a'],
+              'pages': ['detail'],
             },
             {
               'root': 'pkg',
-              'pages': ['b'],
+              'pages': ['export'],
             },
           ];
         expect(
@@ -203,10 +205,44 @@ void main() {
           ..['subPackages'] = [
             {
               'root': 'pkg',
-              'pages': ['a'],
+              'pages': ['detail'],
             },
           ];
         expect(() => ManifestValidator.validate(m), returnsNormally);
+      });
+
+      test('rejects a page not declared in pages', () {
+        final m = baseManifest()
+          ..['subpackages'] = [
+            {
+              'root': 'pkg',
+              'pages': ['ghostPage'],
+            },
+          ];
+        expect(
+          () => ManifestValidator.validate(m),
+          throwsA(isA<BundlerException>().having((e) => e.message, 'message',
+              contains('ghostPage'))),
+        );
+      });
+
+      test('rejects a page assigned to two subpackages', () {
+        final m = baseManifest()
+          ..['subpackages'] = [
+            {
+              'root': 'pkgA',
+              'pages': ['detail'],
+            },
+            {
+              'root': 'pkgB',
+              'pages': ['detail'],
+            },
+          ];
+        expect(
+          () => ManifestValidator.validate(m),
+          throwsA(isA<BundlerException>().having((e) => e.message, 'message',
+              contains('only one subpackage'))),
+        );
       });
     });
 

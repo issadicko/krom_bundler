@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
 import '../utils/logger.dart';
@@ -36,6 +37,12 @@ class BuildCommand extends Command<int> {
         'minify',
         help: 'Minify output (remove comments and whitespace)',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'split-subpackages',
+        help: 'Write each subpackage to its own dist/subpackages/<root>.json '
+            'file (in addition to the inline section of the main manifest).',
+        defaultsTo: false,
       );
   }
 
@@ -45,6 +52,7 @@ class BuildCommand extends Command<int> {
     final output = argResults!['output'] as String;
     final optimize = argResults!['optimize'] as bool;
     final minify = argResults!['minify'] as bool;
+    final splitSubpackages = argResults!['split-subpackages'] as bool;
     final timer = Logger.startTimer();
 
     // Validate manifest exists
@@ -79,6 +87,12 @@ class BuildCommand extends Command<int> {
       await outFile.parent.create(recursive: true);
       await outFile.writeAsString(result);
 
+      // Optionally split each subpackage into its own file, mirroring the
+      // TCMPP on-disk layout so the runtime can fetch a subpackage on demand.
+      if (splitSubpackages) {
+        await _writeSubpackageFiles(result, outFile.parent.path, minify);
+      }
+
       timer.stop();
 
       // Count pages from the manifest
@@ -107,6 +121,35 @@ class BuildCommand extends Command<int> {
       timer.stop();
       Logger.error('Build failed: $e');
       return 1;
+    }
+  }
+
+  /// Write each compiled subpackage from [bundledManifestJson] to its own
+  /// `<distDir>/subpackages/<root>.json` file. Each file contains the
+  /// subpackage's `root` and its compiled `pages`.
+  Future<void> _writeSubpackageFiles(
+    String bundledManifestJson,
+    String distDir,
+    bool minify,
+  ) async {
+    final manifest =
+        jsonDecode(bundledManifestJson) as Map<String, dynamic>;
+    final subpackages = manifest['subpackages'];
+    if (subpackages is! List || subpackages.isEmpty) return;
+
+    final dir = Directory(p.join(distDir, 'subpackages'));
+    await dir.create(recursive: true);
+
+    final encoder =
+        minify ? const JsonEncoder() : const JsonEncoder.withIndent('  ');
+
+    for (final pkg in subpackages) {
+      if (pkg is! Map) continue;
+      final root = pkg['root'];
+      if (root is! String) continue;
+      final file = File(p.join(dir.path, '$root.json'));
+      await file.writeAsString(encoder.convert(pkg));
+      Logger.fileCreated(p.relative(file.path));
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
 import 'bundler.dart';
+import 'manifest_validator.dart';
 
 /// Manifest-based bundler for mini-app projects.
 ///
@@ -35,6 +36,11 @@ class ManifestBundler {
     final manifestDir = p.dirname(p.absolute(manifestPath));
     final manifestContent = await manifestFile.readAsString();
     final manifest = jsonDecode(manifestContent) as Map<String, dynamic>;
+
+    // Validate the manifest schema (window, tabBar, permissions/scopes,
+    // networkTimeout, subpackages) before doing any bundling work, so the
+    // user gets clear, fail-fast errors.
+    ManifestValidator.validate(manifest);
 
     // Process utils first (they're shared)
     final utils = (manifest['utils'] as List<dynamic>?)?.cast<String>() ?? [];
@@ -102,8 +108,18 @@ class ManifestBundler {
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
       if (manifest['permissions'] != null)
         'permissions': manifest['permissions'],
+      if (manifest['scopes'] != null) 'scopes': manifest['scopes'],
       if (manifest['authorizeUrl'] != null)
         'authorizeUrl': manifest['authorizeUrl'],
+      // TCMPP-style configuration, passed through to the runtime.
+      if (manifest['window'] != null) 'window': manifest['window'],
+      if (manifest['tabBar'] != null) 'tabBar': manifest['tabBar'],
+      if (manifest['networkTimeout'] != null)
+        'networkTimeout': manifest['networkTimeout'],
+      if (manifest['subpackages'] != null)
+        'subpackages': manifest['subpackages'],
+      if (manifest['subPackages'] != null)
+        'subpackages': manifest['subPackages'],
     };
 
     if (minify) {

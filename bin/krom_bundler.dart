@@ -5,6 +5,21 @@ import 'package:krom_bundler/krom_bundler.dart';
 const String kromVersion = '0.1.0';
 
 void main(List<String> arguments) async {
+  // Load config
+  final config = KromConfig();
+  await config.load();
+
+  // Handle --set-remote globally
+  for (var i = 0; i < arguments.length; i++) {
+    if (arguments[i].startsWith('--set-remote=')) {
+      final url = arguments[i].substring('--set-remote='.length);
+      config.setRemoteUrl(url);
+      await config.save();
+      Logger.success('Remote URL set to: $url');
+      exit(0);
+    }
+  }
+
   // Handle --version before CommandRunner
   if (arguments.contains('--version') || arguments.contains('-v')) {
     print('krom $kromVersion');
@@ -28,7 +43,11 @@ void main(List<String> arguments) async {
     ..addCommand(InitCommand())
     ..addCommand(DevCommand())
     ..addCommand(BuildCommand())
-    ..addCommand(BundleCommand());
+    ..addCommand(BundleCommand())
+    ..addCommand(LoginCommand())
+    ..addCommand(LogoutCommand())
+    ..addCommand(WhoamiCommand())
+    ..addCommand(DeployCommand());
 
   try {
     final result = await runner.run(arguments);

@@ -32,6 +32,12 @@ fn build() {
 
     test('passes through window, tabBar, networkTimeout, scopes, subpackages',
         () async {
+      // A second page used by the subpackage.
+      await File(p.join(tempDir.path, 'detail.ks')).writeAsString('''
+fn build() {
+  return Text("detail")
+}
+''');
       final path = await writeManifest({
         'id': 'app',
         'name': 'App',
@@ -39,6 +45,7 @@ fn build() {
         'entry': 'home',
         'pages': {
           'home': {'name': 'Home', 'source': 'home.ks'},
+          'detail': {'name': 'Detail', 'source': 'detail.ks'},
         },
         'window': {'navigationBarTitleText': 'App'},
         'tabBar': {
@@ -54,7 +61,7 @@ fn build() {
         'subpackages': [
           {
             'root': 'pkg',
-            'pages': ['x'],
+            'pages': ['detail'],
           },
         ],
       });

@@ -20,6 +20,16 @@
       "name": "Statistiques",
       "icon": "bar_chart",
       "source": "pages/stats.ks"
+    },
+    "stats_detail": {
+      "name": "Detail statistiques",
+      "icon": "insights",
+      "source": "pages/stats_detail.ks"
+    },
+    "stats_export": {
+      "name": "Export statistiques",
+      "icon": "download",
+      "source": "pages/stats_export.ks"
     }
   },
   "utils": [
@@ -66,8 +76,8 @@
     {
       "root": "packageStats",
       "pages": [
-        "stats/detail",
-        "stats/export"
+        "stats_detail",
+        "stats_export"
       ]
     }
   ]

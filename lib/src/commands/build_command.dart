@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../bundler/asset_packager.dart';
 import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
 import '../utils/logger.dart';
@@ -43,6 +44,13 @@ class BuildCommand extends Command<int> {
         help: 'Write each subpackage to its own dist/subpackages/<root>.json '
             'file (in addition to the inline section of the main manifest).',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'package',
+        help: 'Also build the signed-ready ZIP package '
+            '(dist/<appId>__<version>.zip) bundling app.json + assets with '
+            'per-asset sha256.',
+        defaultsTo: true,
       );
   }
 
@@ -53,6 +61,7 @@ class BuildCommand extends Command<int> {
     final optimize = argResults!['optimize'] as bool;
     final minify = argResults!['minify'] as bool;
     final splitSubpackages = argResults!['split-subpackages'] as bool;
+    final buildPackage = argResults!['package'] as bool;
     final timer = Logger.startTimer();
 
     // Validate manifest exists
@@ -73,16 +82,20 @@ class BuildCommand extends Command<int> {
     Logger.newline();
 
     try {
-      Logger.step(1, 3, 'Reading manifest...');
+      final totalSteps = buildPackage ? 4 : 3;
+      Logger.step(1, totalSteps, 'Reading manifest...');
       final bundler = ManifestBundler(
         enableOptimizer: optimize,
         minify: minify,
       );
 
-      Logger.step(2, 3, 'Bundling pages & components...');
-      final result = await bundler.bundleProject(manifestPath);
+      Logger.step(2, totalSteps, 'Bundling pages & components...');
+      final compiled = await bundler.bundleProjectToMap(manifestPath);
+      final result = minify
+          ? jsonEncode(compiled)
+          : const JsonEncoder.withIndent('  ').convert(compiled);
 
-      Logger.step(3, 3, 'Writing output...');
+      Logger.step(3, totalSteps, 'Writing output...');
       final outFile = File(output);
       await outFile.parent.create(recursive: true);
       await outFile.writeAsString(result);
@@ -91,6 +104,19 @@ class BuildCommand extends Command<int> {
       // TCMPP on-disk layout so the runtime can fetch a subpackage on demand.
       if (splitSubpackages) {
         await _writeSubpackageFiles(result, outFile.parent.path, minify);
+      }
+
+      // Build the signed-ready ZIP package (app.json + assets/<relPath>) with
+      // per-asset sha256, alongside the legacy manifest. The backend signs it.
+      String? packagePath;
+      if (buildPackage) {
+        Logger.step(4, totalSteps, 'Packaging assets...');
+        packagePath = await _writePackage(
+          compiled,
+          manifestPath,
+          outFile.parent.path,
+          minify,
+        );
       }
 
       timer.stop();
@@ -107,6 +133,10 @@ class BuildCommand extends Command<int> {
         outputSize: outFile.lengthSync(),
         outputPath: output,
       );
+
+      if (packagePath != null) {
+        Logger.keyValue('  Package', packagePath);
+      }
 
       Logger.success('Build complete!');
       return 0;
@@ -151,6 +181,36 @@ class BuildCommand extends Command<int> {
       await file.writeAsString(encoder.convert(pkg));
       Logger.fileCreated(p.relative(file.path));
     }
+  }
+
+  /// Build and write the signed-ready version package to
+  /// `<distDir>/<appId>__<version>.zip`. The package contains `app.json`
+  /// (compiled manifest + per-asset sha256 integrity map) and the raw assets
+  /// under `assets/<relPath>`. Returns the written path.
+  Future<String> _writePackage(
+    Map<String, dynamic> compiledManifest,
+    String manifestPath,
+    String distDir,
+    bool minify,
+  ) async {
+    final appId = (compiledManifest['id'] ?? 'app').toString();
+    final version = (compiledManifest['version'] ?? '0.0.0').toString();
+    final projectDir = p.dirname(p.absolute(manifestPath));
+
+    final pkg = await AssetPackager.build(
+      compiledManifest: compiledManifest,
+      projectDir: projectDir,
+      minify: minify,
+    );
+
+    final pkgFile =
+        File(p.join(distDir, AssetPackager.packageFileName(appId, version)));
+    await pkgFile.writeAsBytes(pkg.zipBytes, flush: true);
+
+    Logger.fileCreated(p.relative(pkgFile.path));
+    Logger.keyValue('  Assets', '${pkg.assets.length}');
+    Logger.keyValue('  Package sha256', pkg.zipSha256Hex);
+    return p.relative(pkgFile.path);
   }
 
   Future<Map<String, dynamic>> _readManifest(String path) async {

@@ -30,9 +30,18 @@ dependencies:
   
   # Console colors
   ansicolor: ^2.0.0
-  
+
   # HTTP client
   http: ^1.1.0
+
+  # Media types for multipart uploads
+  http_parser: ^4.0.0
+
+  # ZIP archive for signed version packages
+  archive: ^3.4.0
+
+  # SHA-256 integrity hashing for embedded assets
+  crypto: ^3.0.0
 
 dev_dependencies:
   lints: ^3.0.0

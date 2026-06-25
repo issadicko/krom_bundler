@@ -28,6 +28,20 @@ class ManifestBundler {
   /// [manifestPath] - Path to manifest.json
   /// Returns the final manifest JSON as a string.
   Future<String> bundleProject(String manifestPath) async {
+    final manifest = await bundleProjectToMap(manifestPath);
+    if (minify) {
+      return jsonEncode(manifest);
+    }
+    return const JsonEncoder.withIndent('  ').convert(manifest);
+  }
+
+  /// Bundle a mini-app project from its manifest, returning the compiled
+  /// manifest as a map (the `app.json` object, scripts inlined).
+  ///
+  /// This is the structured form of [bundleProject]; callers that need to
+  /// post-process the manifest (e.g. attach an `assets` integrity map for the
+  /// version package) use this to avoid re-compiling.
+  Future<Map<String, dynamic>> bundleProjectToMap(String manifestPath) async {
     final manifestFile = File(manifestPath);
     if (!await manifestFile.exists()) {
       throw BundlerException('Manifest not found: $manifestPath');
@@ -135,6 +149,9 @@ class ManifestBundler {
       'id': manifest['id'],
       'name': manifest['name'],
       'version': manifest['version'],
+      // The app icon is passed through so the runtime can render it and the
+      // packager can collect it as an embedded asset.
+      if (manifest['icon'] != null) 'icon': manifest['icon'],
       if (manifest['description'] != null)
         'description': manifest['description'],
       if (manifest['author'] != null) 'author': manifest['author'],
@@ -155,10 +172,7 @@ class ManifestBundler {
       if (subpackagesOutput.isNotEmpty) 'subpackages': subpackagesOutput,
     };
 
-    if (minify) {
-      return jsonEncode(outputManifest);
-    }
-    return const JsonEncoder.withIndent('  ').convert(outputManifest);
+    return outputManifest;
   }
 
   /// Flatten the declared subpackages into a `pageId -> root` lookup.

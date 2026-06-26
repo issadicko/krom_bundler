@@ -216,10 +216,21 @@ class DevServer {
     );
   }
 
-  /// Serve Flutter Web assets
+  /// The mini-app project directory (where `manifest.json` lives).
+  String get _projectDir => p.dirname(p.absolute(manifestPath));
+
+  /// Serve Flutter Web assets — and, as a fallback, the mini-app project's
+  /// own assets so relative `assets/…` references resolve in `krom dev`.
   Response _serveFlutterAsset(String assetPath) {
     final webBuildDir = _resolveWebBuildDir();
-    final file = File(p.join(webBuildDir, assetPath));
+    var file = File(p.join(webBuildDir, assetPath));
+
+    // Fall back to the project's own assets (e.g. assets/images/…). web_build
+    // keeps precedence so the Flutter shell's assets are never shadowed.
+    if (!file.existsSync() && !assetPath.contains('..')) {
+      final projectFile = File(p.join(_projectDir, assetPath));
+      if (projectFile.existsSync()) file = projectFile;
+    }
 
     if (!file.existsSync()) {
       return Response.notFound('Asset not found: $assetPath');
@@ -237,6 +248,14 @@ class DevServer {
       contentType = 'image/x-icon';
     } else if (assetPath.endsWith('.png')) {
       contentType = 'image/png';
+    } else if (assetPath.endsWith('.jpg') || assetPath.endsWith('.jpeg')) {
+      contentType = 'image/jpeg';
+    } else if (assetPath.endsWith('.gif')) {
+      contentType = 'image/gif';
+    } else if (assetPath.endsWith('.svg')) {
+      contentType = 'image/svg+xml';
+    } else if (assetPath.endsWith('.webp')) {
+      contentType = 'image/webp';
     }
 
     return Response.ok(
@@ -245,20 +264,27 @@ class DevServer {
     );
   }
 
-  /// Resolve the web_build directory relative to the executable
+  /// Resolve the bundled Flutter-web preview (`web_build`). Searched in
+  /// order: next to the executable, the per-user install at
+  /// `~/.krom/web_build` (so a globally-installed `krom` finds it from any
+  /// project CWD), then `./web_build` (repo dev with `dart run`). Falls back
+  /// to the embedded lightweight HTML preview when none exist.
   String _resolveWebBuildDir() {
-    final execDir = p.dirname(Platform.resolvedExecutable);
-    final candidate = p.join(execDir, 'web_build');
-    if (Directory(candidate).existsSync()) {
-      return candidate;
+    final candidates = <String>[
+      p.join(p.dirname(Platform.resolvedExecutable), 'web_build'),
+    ];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    if (home != null && home.isNotEmpty) {
+      candidates.add(p.join(home, '.krom', 'web_build'));
     }
-    // Fallback: try relative to CWD (for development with `dart run`)
-    final cwdCandidate = p.join(Directory.current.path, 'web_build');
-    if (Directory(cwdCandidate).existsSync()) {
-      return cwdCandidate;
+    candidates.add(p.join(Directory.current.path, 'web_build'));
+
+    for (final c in candidates) {
+      if (Directory(c).existsSync()) return c;
     }
-    Logger.debug('web_build not found at $candidate or $cwdCandidate');
-    return candidate;
+    Logger.debug('web_build not found in: ${candidates.join(', ')}');
+    return candidates.first;
   }
 
   /// Generate preview HTML page
@@ -629,6 +655,7 @@ class DevServer {
     }
 
     function escapeHtml(s) {
+      s = String(s == null ? '' : s);
       return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
@@ -649,64 +676,58 @@ class DevServer {
       }
     }
 
+    // Return the content between the first balanced parentheses of `src`
+    // (which must start at the opening '('), respecting strings/nesting.
+    function innerParens(src) {
+      let depth = 0, out = '', inStr = false, strCh = '';
+      for (let i = 0; i < src.length; i++) {
+        const ch = src[i];
+        if ((ch === '"' || ch === "'") && (i === 0 || src[i-1] !== '\\\\')) {
+          if (!inStr) { inStr = true; strCh = ch; } else if (ch === strCh) inStr = false;
+        }
+        if (!inStr) {
+          if (ch === '(') { depth++; if (depth === 1) continue; }
+          else if (ch === ')') { depth--; if (depth === 0) return out; }
+        }
+        if (depth >= 1) out += ch;
+      }
+      return out;
+    }
+
+    // Parse a { key: value, ... } object literal. Widget-valued and
+    // array-valued props are parsed recursively (e.g. Scaffold appBar).
+    function parseProps(objStr) {
+      const inner = objStr.replace(/^\\{/, '').replace(/\\}\$/, '');
+      const props = {};
+      splitTopLevel(inner).forEach(pair => {
+        const idx = pair.indexOf(':');
+        if (idx <= 0) return;
+        const k = pair.slice(0, idx).trim().replace(/^["']|["']\$/g, '');
+        const v = pair.slice(idx + 1).trim();
+        if (/^[A-Z]\\w*\\s*\\(/.test(v)) props[k] = parseWidget(v);
+        else if (v[0] === '[') props[k] = splitTopLevel(v.slice(1, -1)).map(parseWidget).filter(Boolean);
+        else props[k] = v.replace(/^["']|["']\$/g, '');
+      });
+      return props;
+    }
+
     function parseWidget(src) {
       src = src.trim();
       const nameMatch = src.match(/^([A-Z]\\w*)\\s*\\(/);
       if (!nameMatch) return { type: 'raw', text: src };
-
       const name = nameMatch[1];
-      let rest = src.slice(nameMatch[0].length);
-      const args = [];
-      let props = {};
-      let children = [];
-
-      // Extract simple string/number args, props object, and children array
-      let depth = { p: 0, b: 0, s: 0 };
-      let current = '';
-      let inStr = false;
-      let strCh = '';
-
-      // Re-parse full args inside the outer parens
-      let parenDepth = 1;
-      let i = 0;
-      let argsStr = '';
-      while (i < rest.length && parenDepth > 0) {
-        const ch = rest[i];
-        if ((ch === '"' || ch === "'") && (i === 0 || rest[i-1] !== '\\\\')) {
-          if (!inStr) { inStr = true; strCh = ch; }
-          else if (ch === strCh) { inStr = false; }
-        }
-        if (!inStr) {
-          if (ch === '(') parenDepth++;
-          if (ch === ')') { parenDepth--; if (parenDepth === 0) break; }
-        }
-        argsStr += ch;
-        i++;
-      }
-
-      // Find children array [...] and props object {...}
-      const childrenMatch = argsStr.match(/,\\s*\\[([\\s\\S]*)\\]\\s*\$/);
-      const propsMatch = argsStr.match(/\\{([\\s\\S]*?)\\}/);
-
-      if (propsMatch) {
-        propsMatch[1].split(',').forEach(p => {
-          const kv = p.split(':').map(s => s.trim());
-          if (kv.length === 2) {
-            props[kv[0]] = kv[1].replace(/^["']|["']\$/g, '');
-          }
-        });
-      }
-
-      // Extract string arguments
-      const strArgs = argsStr.match(/^\\s*"([^"]*?)"/);
-      if (strArgs) args.push(strArgs[1]);
-
-      // Parse children
-      if (childrenMatch) {
-        const childSrc = childrenMatch[1];
-        children = splitTopLevel(childSrc).map(c => parseWidget(c.trim())).filter(c => c);
-      }
-
+      // Classify each top-level argument: props object, children array,
+      // a positional child widget (Scaffold/Card/Box/...), or a literal.
+      const inner = innerParens(src.slice(nameMatch[0].length - 1));
+      let props = {}, args = [], children = [];
+      splitTopLevel(inner).forEach(part => {
+        const t = part.trim();
+        if (!t) return;
+        if (t[0] === '{') props = parseProps(t);
+        else if (t[0] === '[') children = children.concat(splitTopLevel(t.slice(1, -1)).map(parseWidget).filter(Boolean));
+        else if (/^[A-Z]\\w*\\s*\\(/.test(t)) children.push(parseWidget(t));
+        else args.push(t.replace(/^["']|["']\$/g, ''));
+      });
       return { type: name, props, args, children };
     }
 
@@ -744,45 +765,100 @@ class DevServer {
 
       const p = w.props || {};
       const ch = (w.children || []).map(renderWidget).join('');
+      // A single positional child (Scaffold/Box/Card/...) lands in children;
+      // an explicit `body:` prop wins when present.
+      const body = p.body ? renderWidget(p.body) : ch;
+      const a0 = (w.args && w.args[0]) || '';
 
       switch (w.type) {
+        case 'Scaffold':
+          return '<div style="' + (p.backgroundColor ? 'background:' + p.backgroundColor + ';' : '') + 'min-height:100%;display:flex;flex-direction:column;">' +
+            (p.appBar ? renderWidget(p.appBar) : '') +
+            '<div style="flex:1;">' + body + '</div></div>';
+
+        case 'AppBar':
+          return '<div style="background:' + (p.backgroundColor || '#6200ee') + ';color:#fff;padding:14px 16px;font-weight:600;font-size:15px;">' +
+            escapeHtml(p.title || a0) + '</div>';
+
+        case 'Card':
+          return '<div style="' +
+            (p.color ? 'background:' + p.color + ';' : 'background:#fff;') +
+            (p.padding ? 'padding:' + p.padding + 'px;' : 'padding:12px;') +
+            (p.borderRadius ? 'border-radius:' + p.borderRadius + 'px;' : 'border-radius:8px;') +
+            'box-shadow:0 1px 4px rgba(0,0,0,0.12);">' + body + '</div>';
+
         case 'Box':
-          return '<div class="ks-box" style="' +
+        case 'Container':
+        case 'Padding':
+          return '<div style="' +
             (p.color ? 'background:' + p.color + ';' : '') +
             (p.padding ? 'padding:' + p.padding + 'px;' : '') +
             (p.borderRadius ? 'border-radius:' + p.borderRadius + 'px;' : '') +
+            (p.width === 'infinity' ? 'width:100%;box-sizing:border-box;' : (p.width ? 'width:' + p.width + 'px;' : '')) +
             (p.height === 'infinity' ? 'min-height:100%;' : (p.height ? 'height:' + p.height + 'px;' : '')) +
-            (p.width === 'infinity' ? 'width:100%;' : (p.width ? 'width:' + p.width + 'px;' : '')) +
-            '">' + ch + '</div>';
+            '">' + body + '</div>';
 
         case 'Column':
-          return '<div class="ks-column" style="' +
+          return '<div style="display:flex;flex-direction:column;' +
             (p.spacing ? 'gap:' + p.spacing + 'px;' : '') +
-            (p.mainAxisAlignment === 'center' ? 'justify-content:center;' : '') +
             (p.crossAxisAlignment === 'center' ? 'align-items:center;' : '') +
+            (p.mainAxisAlignment === 'center' ? 'justify-content:center;' : '') +
             '">' + ch + '</div>';
 
         case 'Row':
-          return '<div class="ks-row" style="' +
+          return '<div style="display:flex;flex-direction:row;' +
             (p.spacing ? 'gap:' + p.spacing + 'px;' : '') +
-            (p.mainAxisAlignment === 'center' ? 'justify-content:center;' : '') +
             (p.crossAxisAlignment === 'center' ? 'align-items:center;' : '') +
+            (p.mainAxisAlignment === 'center' ? 'justify-content:center;' : '') +
             '">' + ch + '</div>';
 
+        case 'Center':
+          return '<div style="display:flex;align-items:center;justify-content:center;">' + body + '</div>';
+
+        case 'Expanded':
+        case 'ScrollView':
+        case 'ListView':
+        case 'SizedBox':
+        case 'InkWell':
+          return '<div style="' + (w.type === 'Expanded' ? 'flex:1;' : '') +
+            (p.borderRadius ? 'border-radius:' + p.borderRadius + 'px;' : '') + '">' + body + '</div>';
+
         case 'Text':
-          return '<span class="ks-text" style="' +
+          return '<span style="' +
             (p.fontSize ? 'font-size:' + p.fontSize + 'px;' : '') +
             (p.fontWeight ? 'font-weight:' + p.fontWeight + ';' : '') +
             (p.color ? 'color:' + p.color + ';' : '') +
-            '">' + escapeHtml(w.args?.[0] || '') + '</span>';
+            '">' + escapeHtml(a0 || p.content || '') + '</span>';
 
-        case 'InkWell':
-          return '<div class="ks-inkwell" style="' +
-            (p.borderRadius ? 'border-radius:' + p.borderRadius + 'px;' : '') +
-            '">' + ch + '</div>';
+        case 'TextField':
+        case 'Input':
+          return '<div style="display:flex;flex-direction:column;gap:4px;margin:4px 0;">' +
+            (p.labelText ? '<label style="font-size:12px;color:#555;">' + escapeHtml(p.labelText) + '</label>' : '') +
+            '<input placeholder="' + escapeHtml(p.placeholder || p.labelText || '') + '" style="padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px;"/></div>';
+
+        case 'Button':
+          return '<button style="' +
+            (p.color ? 'background:' + p.color + ';color:#fff;' : 'background:#6200ee;color:#fff;') +
+            'border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;margin:4px 0;">' +
+            escapeHtml(a0 || p.label || 'Button') + '</button>';
+
+        case 'Icon':
+          return '<span title="' + escapeHtml(a0 || p.name || '') + '" style="font-size:' + (p.size || 20) + 'px;color:' + (p.color || '#666') + ';">[icon]</span>';
+
+        case 'Image':
+          return '<div style="background:#eee;border-radius:6px;min-height:60px;display:flex;align-items:center;justify-content:center;color:#999;font-size:11px;">image</div>';
+
+        case 'Divider':
+          return '<hr style="border:none;border-top:1px solid #e0e0e0;margin:8px 0;"/>';
 
         case 'Obx':
           return '<div style="padding:4px;color:#aaa;font-size:12px;font-style:italic;">[Reactive: ' + (p.builder || '?') + ']</div>';
+
+        case 'ListTile':
+          return '<div style="display:flex;align-items:center;gap:12px;padding:8px 4px;">' +
+            (p.leading ? renderWidget(p.leading) : '') +
+            '<div style="flex:1;">' + (p.title ? renderWidget(p.title) : '') + (p.subtitle ? renderWidget(p.subtitle) : '') + '</div>' +
+            (p.trailing ? renderWidget(p.trailing) : '') + '</div>';
 
         default:
           return '<div style="padding:4px;border:1px dashed #ddd;border-radius:4px;margin:2px;font-size:11px;color:#888;">' +

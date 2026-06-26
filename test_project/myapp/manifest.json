@@ -1,23 +1,23 @@
 {
   "id": "myapp",
-  "name": "Myapp",
+  "name": "Mes Tâches",
   "version": "1.0.0",
-  "description": "A KromLang mini-app",
-  "author": "",
-  
+  "description": "Gestionnaire de tâches — démo complète KromLang",
+  "author": "Krom",
+
   "entry": "home",
-  
+
   "pages": {
-    "home": {
-      "name": "Home",
-      "source": "pages/home.ks",
-      "icon": "home"
-    }
+    "home":   { "name": "Accueil",       "source": "pages/home.ks",   "icon": "home" },
+    "add":    { "name": "Nouvelle tâche", "source": "pages/add.ks",    "icon": "add" },
+    "detail": { "name": "Détail",         "source": "pages/detail.ks", "icon": "info" },
+    "about":  { "name": "À propos",       "source": "pages/about.ks",  "icon": "info" }
   },
-  
+
   "utils": [
-    "utils/helpers.ks"
+    "utils/store.ks",
+    "utils/ui.ks"
   ],
-  
+
   "permissions": []
 }

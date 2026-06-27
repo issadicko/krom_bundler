@@ -115,9 +115,16 @@ class AssetPackager {
     final appJson = encoder.convert(appManifest);
 
     // Assemble the ZIP: app.json at the root, raw bytes under assets/<relPath>.
+    // Encode app.json to UTF-8 bytes explicitly. ArchiveFile.string records the
+    // string's code-unit length as the entry size, which differs from the
+    // UTF-8 byte length whenever the JSON contains non-ASCII characters
+    // (accents, ellipsis, emoji) — producing an entry whose declared size is
+    // smaller than its data and which strict ZIP readers (e.g. Java's
+    // ZipInputStream, used by the backend) reject with "invalid entry size".
+    final appJsonBytes = utf8.encode(appJson);
     final archive = Archive()
       ..addFile(
-        ArchiveFile.string('app.json', appJson),
+        ArchiveFile('app.json', appJsonBytes.length, appJsonBytes),
       );
     for (final a in assets) {
       archive.addFile(ArchiveFile(a.relPath, a.size, a.bytes));

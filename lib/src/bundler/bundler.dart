@@ -4,6 +4,7 @@ import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
 import '../utils/logger.dart';
+import 'minifier.dart';
 
 /// Bundler - bundles KromLang scripts with @use imports
 class Bundler {
@@ -146,22 +147,8 @@ class Bundler {
     }
   }
 
-  /// Minify code (remove all unnecessary whitespace)
-  String _minify(String source) {
-    var result = source;
-
-    // Remove all comments
-    result = result.replaceAll(RegExp(r'//.*$', multiLine: true), '');
-
-    // Remove newlines and extra spaces
-    result = result.replaceAll(RegExp(r'\s+'), ' ');
-
-    // Remove spaces around operators and punctuation
-    result = result.replaceAll(RegExp(r'\s*([{}()\[\],;:])\s*'), r'$1');
-    result = result.replaceAll(RegExp(r'\s*([=+\-*/<>!&|])\s*'), r'$1');
-
-    return result.trim();
-  }
+  /// Minify the source — string-literal-aware (see [minifyKromSource]).
+  String _minify(String source) => minifyKromSource(source);
 
   /// Validate bundled output by parsing it
   Future<void> validate(String bundledSource) async {

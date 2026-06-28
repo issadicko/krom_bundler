@@ -6,6 +6,7 @@ import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
+import 'minifier.dart';
 
 /// Manifest-based bundler for mini-app projects.
 ///
@@ -302,22 +303,6 @@ class ManifestBundler {
     }
   }
 
-  /// Minify code (remove all unnecessary whitespace)
-  String _minify(String source) {
-    var result = source;
-
-    // Remove all comments
-    result = result.replaceAll(RegExp(r'//.*$', multiLine: true), '');
-
-    // Remove newlines and extra spaces
-    result = result.replaceAll(RegExp(r'\s+'), ' ');
-
-    // Remove spaces around operators and punctuation
-    result = result.replaceAllMapped(
-        RegExp(r'\s*([{}()\[\],;:])\s*'), (m) => '${m[1]}');
-    result = result.replaceAllMapped(
-        RegExp(r'\s*([=+\-*/<>!&|])\s*'), (m) => '${m[1]}');
-
-    return result.trim();
-  }
+  /// Minify the combined source — string-literal-aware (see [minifyKromSource]).
+  String _minify(String source) => minifyKromSource(source);
 }

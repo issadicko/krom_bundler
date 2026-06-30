@@ -854,6 +854,30 @@ class DevServer {
         case 'Obx':
           return '<div style="padding:4px;color:#aaa;font-size:12px;font-style:italic;">[Reactive: ' + (p.builder || '?') + ']</div>';
 
+        case 'TabNav': {
+          // Top tabs. The tab items are object literals (parsed as raw); pull
+          // their label/builder with a regex. The active tab's content comes
+          // from a builder we can't invoke here, so show a reactive placeholder.
+          const tabs = Array.isArray(p.tabs) ? p.tabs : [];
+          const chips = tabs.map(function (t, i) {
+            const raw = (t && t.text) || '';
+            const m = raw.match(/label:\\s*"([^"]*)"/);
+            const label = m ? m[1] : 'Onglet';
+            return '<span style="padding:8px 12px;font-size:13px;' +
+              (i === 0
+                ? 'color:#2563EB;border-bottom:2px solid #2563EB;font-weight:600;'
+                : 'color:#888;border-bottom:2px solid transparent;') +
+              '">' + escapeHtml(label) + '</span>';
+          }).join('');
+          const firstRaw = (tabs[0] && tabs[0].text) || '';
+          const bm = firstRaw.match(/builder:\\s*"([^"]*)"/);
+          return '<div style="display:flex;border-bottom:1px solid #eee;' +
+            (p.backgroundColor ? 'background:' + p.backgroundColor + ';' : '') +
+            '">' + chips + '</div>' +
+            '<div style="padding:8px;color:#aaa;font-size:12px;font-style:italic;">[Reactive: ' +
+            escapeHtml(bm ? bm[1] : '?') + ']</div>';
+        }
+
         case 'ListTile':
           return '<div style="display:flex;align-items:center;gap:12px;padding:8px 4px;">' +
             (p.leading ? renderWidget(p.leading) : '') +

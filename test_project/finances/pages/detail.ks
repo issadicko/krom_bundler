@@ -1,7 +1,7 @@
 // ============================================================
-// Détail d'une transaction (+ suppression). `args.id` vient de ui.push.
-// Obs(null) étant piégeux en KromScript, on garde l'id en variable et
-// on utilise `tick` (Obs entier) comme simple déclencheur de rebuild.
+// Détail d'une transaction (modifier / supprimer). `args.id` vient de
+// ui.push. Obs(null) étant piégeux en KromScript, on garde l'id en variable
+// et on utilise `tick` (Obs entier) comme simple déclencheur de rebuild.
 // ============================================================
 @use "../utils/ui.ks"
 @use "../utils/store.ks"
@@ -17,6 +17,11 @@ fn refresh() {
 fn onInit() { refresh() }
 fn onShow() { refresh() }
 fn back() { ui.pop() }
+
+fn edit() {
+  if (txId == "") { return }
+  ui.push("add", { id: txId })
+}
 
 fn remove() {
   if (txId == "") { return }
@@ -44,11 +49,9 @@ fn content() {
   let cat = categoryByKey(t.category)
   let amountColor = T.expense
   let typeLabel = "Dépense"
-  let badgeBg = T.expenseBg
   if (t.type == "income") {
     amountColor = T.income
     typeLabel = "Revenu"
-    badgeBg = T.incomeBg
   }
 
   let noteText = t.note
@@ -60,7 +63,7 @@ fn content() {
           Column({ spacing: 12, crossAxisAlignment: "center", mainAxisAlignment: "center" }, [
               catAvatar(cat, 64),
               Text(signedMoney(t.amount, t.type), { fontSize: 30, fontWeight: "bold", color: amountColor }),
-              Box({ color: badgeBg, borderRadius: 20, padding: 8 },
+              Box({ color: alpha(amountColor, "1F"), borderRadius: 20, padding: 8 },
                 Text(typeLabel + " · " + cat.label, { fontSize: 13, fontWeight: "600", color: amountColor })
               )
           ])
@@ -68,13 +71,14 @@ fn content() {
         infoRow("Catégorie", cat.label),
         infoRow("Date", fmtDate(t.date)),
         infoRow("Note", noteText),
-        Button("Supprimer", { onTap: "remove", color: T.danger, fullWidth: true, icon: "delete" })
+        Button("Modifier", { onTap: "edit", color: T.primary, fullWidth: true, icon: "edit" }),
+        Button("Supprimer", { onTap: "remove", variant: "outlined", color: T.danger, fullWidth: true, icon: "delete" })
     ])
   )
 }
 
 fn infoRow(label, value) {
-  return Box({ color: T.surface, borderRadius: 14, padding: 16 },
+  return Box({ color: T.surface, borderRadius: 14, padding: 16, borderColor: T.line, borderWidth: 1 },
     Row({ mainAxisAlignment: "spaceBetween", crossAxisAlignment: "center", spacing: 12 }, [
         Text(label, { fontSize: 13, color: T.muted }),
         Text(value, { fontSize: 14, fontWeight: "600", color: T.text })

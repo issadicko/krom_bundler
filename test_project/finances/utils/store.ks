@@ -1,12 +1,14 @@
 // ============================================================
-// Données : transactions persistées en JSON dans le storage local
-// (clé "finances_tx"). Chaque page a son propre moteur, donc l'état
-// est partagé uniquement via le storage, rechargé dans onInit/onShow.
+// Données : transactions + budget mensuel, persistés en JSON dans le
+// storage local. Chaque page a son propre moteur, donc l'état est
+// partagé uniquement via le storage, rechargé dans onInit/onShow.
 //
 // Forme d'une transaction :
 //   { id, type: "income"|"expense", amount, category, note, date }
 // ============================================================
-@use "./ui.ks"  // expenseByCategory s'appuie sur categoriesFor (ui.ks)
+@use "./ui.ks"  // expenseByCategory / monthItems s'appuient sur ui.ks
+
+// --- Transactions --------------------------------------------
 
 fn loadTx() {
   let raw = storage.getItem("finances_tx")
@@ -33,6 +35,20 @@ fn addTx(type, amount, category, note) {
   persistTx(items)
 }
 
+// Met à jour une transaction existante (conserve id + date d'origine).
+fn updateTx(id, type, amount, category, note) {
+  let items = loadTx()
+  let out = []
+  items.forEach(fn(t, i) {
+      if (t.id == id) {
+        out.add({ id: t.id, type: type, amount: amount, category: category, note: note, date: t.date })
+      } else {
+        out.add(t)
+      }
+  })
+  persistTx(out)
+}
+
 fn txById(id) {
   let items = loadTx()
   let found = null
@@ -51,6 +67,21 @@ fn deleteTxById(id) {
   persistTx(out)
 }
 
+// --- Budget mensuel ------------------------------------------
+// 0 (ou absent) = aucun budget défini.
+
+fn loadBudget() {
+  let raw = storage.getItem("finances_budget")
+  if (raw == null) { return 0 }
+  let v = toNumber(raw)
+  if (v == null) { return 0 }
+  return v
+}
+
+fn saveBudget(amount) {
+  storage.setItem("finances_budget", toString(amount))
+}
+
 // --- Agrégations ---------------------------------------------
 
 fn sumByType(items, type) {
@@ -65,10 +96,8 @@ fn balance(items) {
   return sumByType(items, "income") - sumByType(items, "expense")
 }
 
-// Transactions du mois calendaire courant.
-fn monthItems(items) {
-  let m = month()
-  let y = year()
+// Transactions d'un mois calendaire donné (m de 1 à 12, y l'année).
+fn monthItemsFor(items, m, y) {
   let out = []
   items.forEach(fn(t, i) {
       if (month(t.date) == m) {
@@ -76,6 +105,11 @@ fn monthItems(items) {
       }
   })
   return out
+}
+
+// Transactions du mois calendaire courant.
+fn monthItems(items) {
+  return monthItemsFor(items, month(), year())
 }
 
 // Dépenses agrégées par catégorie : [{ key, label, emoji, color, total }].

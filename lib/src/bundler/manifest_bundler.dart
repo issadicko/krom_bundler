@@ -4,8 +4,10 @@ import 'package:path/path.dart' as p;
 import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
+import '../utils/logger.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
+import 'minifier.dart';
 
 /// Manifest-based bundler for mini-app projects.
 ///
@@ -56,8 +58,18 @@ class ManifestBundler {
     // user gets clear, fail-fast errors.
     ManifestValidator.validate(manifest);
 
-    // Process utils first (they're shared)
-    final utils = (manifest['utils'] as List<dynamic>?)?.cast<String>() ?? [];
+    // Imports are on-demand: each page/component pulls exactly the utilities it
+    // `@use`s (transitively), nothing more. The legacy top-level `utils` list
+    // (which used to be force-prepended to every page) is no longer
+    // auto-combined — warn if a manifest still relies on it.
+    final legacyUtils =
+        (manifest['utils'] as List<dynamic>?)?.cast<String>() ?? [];
+    if (legacyUtils.isNotEmpty) {
+      Logger.warn(
+        'manifest "utils" is deprecated and no longer auto-imported. '
+        'Add `@use "<path>"` to each page/component that needs them.',
+      );
+    }
 
     // Build the page -> subpackage-root assignment up front. A page listed in
     // a subpackage is bundled into that subpackage only; every other page
@@ -83,8 +95,7 @@ class ManifestBundler {
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript =
-          await _bundleWithUtils(fullPath, utils, manifestDir);
+      final bundledScript = await _bundlePage(fullPath);
 
       final compiledPage = <String, dynamic>{
         'name': pageConfig['name'] ?? pageId,
@@ -116,8 +127,7 @@ class ManifestBundler {
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript =
-          await _bundleWithUtils(fullPath, utils, manifestDir);
+      final bundledScript = await _bundlePage(fullPath);
 
       componentsOutput[componentId] = {
         'name': componentConfig['name'] ?? componentId,
@@ -232,45 +242,26 @@ class ManifestBundler {
     return output;
   }
 
-  /// Bundle a file with all utils prepended.
-  Future<String> _bundleWithUtils(
-    String filePath,
-    List<String> utils,
-    String manifestDir,
-  ) async {
-    final buffer = StringBuffer();
-
-    // First, include all utils
-    for (final utilPath in utils) {
-      final fullUtilPath = p.join(manifestDir, utilPath);
-      final utilFile = File(fullUtilPath);
-      if (await utilFile.exists()) {
-        buffer.writeln('// ===== ${p.basename(utilPath)} =====');
-        buffer.writeln(await utilFile.readAsString());
-        buffer.writeln();
-      }
-    }
-
-    // Then bundle the main file (which may have its own @use imports)
-    // Use a fresh bundler to avoid _processed state leaking between bundles
+  /// Bundle a page/component file by resolving only its `@use` imports.
+  ///
+  /// Nothing is imported implicitly: the file gets exactly the utilities it
+  /// `@use`s (resolved transitively, de-duplicated, with circular-import
+  /// detection by [Bundler]). Optimisation/minification run once on the
+  /// resolved unit.
+  Future<String> _bundlePage(String filePath) async {
+    // The inner bundler only resolves @use imports and strips the directives;
+    // it does no optimisation itself, so we optimise/minify here exactly once.
     final bundler = _freshBundler();
-    final bundled = await bundler.bundle(filePath);
-    buffer.writeln('// ===== ${p.basename(filePath)} =====');
-    buffer.write(bundled);
+    var finalSource = await bundler.bundle(filePath);
 
-    var finalSource = buffer.toString();
-
-    // Now apply optimization globally on the combined source!
     if (enableOptimizer) {
       finalSource = _optimize(finalSource);
     }
 
-    // Apply minification
     if (minify) {
       finalSource = _minify(finalSource);
     }
 
-    // Validate the bundled output
     await bundler.validate(finalSource);
 
     return finalSource;
@@ -302,22 +293,6 @@ class ManifestBundler {
     }
   }
 
-  /// Minify code (remove all unnecessary whitespace)
-  String _minify(String source) {
-    var result = source;
-
-    // Remove all comments
-    result = result.replaceAll(RegExp(r'//.*$', multiLine: true), '');
-
-    // Remove newlines and extra spaces
-    result = result.replaceAll(RegExp(r'\s+'), ' ');
-
-    // Remove spaces around operators and punctuation
-    result = result.replaceAllMapped(
-        RegExp(r'\s*([{}()\[\],;:])\s*'), (m) => '${m[1]}');
-    result = result.replaceAllMapped(
-        RegExp(r'\s*([=+\-*/<>!&|])\s*'), (m) => '${m[1]}');
-
-    return result.trim();
-  }
+  /// Minify the combined source — string-literal-aware (see [minifyKromSource]).
+  String _minify(String source) => minifyKromSource(source);
 }

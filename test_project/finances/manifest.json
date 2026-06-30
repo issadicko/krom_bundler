@@ -1,7 +1,7 @@
 {
   "id": "finances",
   "name": "Mes Finances",
-  "version": "1.0.2",
+  "version": "1.1.1",
   "description": "Gestion de finances personnelles — revenus, dépenses et bilan mensuel, persistés en local storage.",
   "author": "Krom",
 
@@ -13,11 +13,6 @@
     "detail": { "name": "Détail",  "source": "pages/detail.ks", "icon": "info" },
     "stats":  { "name": "Stats",   "source": "pages/stats.ks",  "icon": "info" }
   },
-
-  "utils": [
-    "utils/ui.ks",
-    "utils/store.ks"
-  ],
 
   "permissions": []
 }

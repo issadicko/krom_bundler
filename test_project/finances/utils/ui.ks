@@ -1,22 +1,51 @@
 // ============================================================
-// Thème, formatage monétaire et métadonnées de catégories.
-// (Aucune logique de page ici — atomes réutilisables.)
+// Thème (dérivé du thème de l'app hôte), formatage monétaire,
+// métadonnées de catégories et petits atomes UI réutilisables.
+// (Aucune logique de page ici.)
 // ============================================================
 
+// Le runtime expose `theme` : le ColorScheme Material 3 de l'app hôte,
+// aplati en chaînes "#RRGGBB" (+ brightness). On s'aligne dessus pour
+// suivre la palette de l'hôte en clair ET en sombre.
+let isDark = theme.brightness == "dark"
+
+// Couleurs sémantiques « finance » (vert = revenu, rouge = dépense).
+// Ce ne sont pas des rôles du thème hôte : on choisit des teintes lisibles
+// sur les surfaces claires comme sombres.
+let _income  = "#16A34A"
+let _expense = "#DC2626"
+let _warn    = "#D97706"
+if (isDark) {
+  _income  = "#4ADE80"
+  _expense = "#F87171"
+  _warn    = "#FBBF24"
+}
+
 let T = {
-  primary: "#2563EB",
-  primaryDark: "#1E40AF",
-  bg: "#F1F5F9",
-  surface: "#FFFFFF",
-  text: "#0F172A",
-  muted: "#64748B",
-  line: "#E2E8F0",
-  income: "#16A34A",
-  incomeBg: "#DCFCE7",
-  expense: "#DC2626",
-  expenseBg: "#FEE2E2",
-  danger: "#DC2626",
-  chipBg: "#EFF6FF"
+  // --- Structure : suit le thème de l'hôte ---
+  primary:            theme.primary,
+  onPrimary:          theme.onPrimary,
+  primaryContainer:   theme.primaryContainer,
+  onPrimaryContainer: theme.onPrimaryContainer,
+  bg:                 theme.surfaceContainerLow,
+  surface:            theme.surface,
+  surfaceHigh:        theme.surfaceContainerHigh,
+  text:               theme.onSurface,
+  muted:              theme.onSurfaceVariant,
+  line:               theme.outlineVariant,
+  chipBg:             theme.secondaryContainer,
+  onChip:             theme.onSecondaryContainer,
+  // --- Sémantique finance ---
+  income:  _income,
+  expense: _expense,
+  warn:    _warn,
+  danger:  theme.error
+}
+
+// Applique une opacité (alpha hex "00".."FF") à une couleur "#RRGGBB".
+// parseColor côté runtime accepte le format "#AARRGGBB".
+fn alpha(hexColor, aaHex) {
+  return "#" + aaHex + substring(hexColor, 1, length(hexColor))
 }
 
 // --- Catégories (emoji + couleur, par type) ------------------
@@ -51,6 +80,27 @@ fn categoryByKey(k) {
 // Catégories d'un type donné ("expense" / "income").
 fn categoriesFor(kind) {
   return CATEGORIES.filter(fn(c) { return c.kind == kind })
+}
+
+// --- Mois ----------------------------------------------------
+
+let MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+
+// Nom du mois (m de 1 à 12).
+fn monthName(m) {
+  let i = floor(m) - 1
+  if (i < 0) { return "?" }
+  if (i > 11) { return "?" }
+  return MONTHS[i]
+}
+
+// Décale (m, y) de `delta` mois. m de 1 à 12. Renvoie { m, y }.
+fn addMonths(m, y, delta) {
+  let total = y * 12 + (m - 1) + delta
+  let ny = floor(total / 12)
+  let nm = total - ny * 12 + 1
+  return { m: nm, y: ny }
 }
 
 // --- Formatage monétaire -------------------------------------
@@ -103,6 +153,24 @@ fn signedMoney(amount, type) {
   return "- " + money(amount)
 }
 
+// Nombre -> chaîne éditable pour un champ (sans " €", sans ".0" superflu).
+// 12.0 -> "12", 12.5 -> "12.5".
+fn numToInput(n) {
+  let parts = split(toString(n), ".")
+  if (parts.length < 2) { return parts[0] }
+  if (parts[1] == "0") { return parts[0] }
+  return parts[0] + "." + parts[1]
+}
+
+// Pourcentage entier borné [0..100].
+fn pctInt(part, whole) {
+  if (whole <= 0) { return 0 }
+  let p = floor(part * 100 / whole)
+  if (p < 0) { return 0 }
+  if (p > 100) { return 100 }
+  return p
+}
+
 // Timestamp (ms) -> "JJ/MM/AAAA".
 fn fmtDate(ts) {
   return formatDate(ts, "DD/MM/YYYY")
@@ -115,9 +183,23 @@ fn dot(color, sizePx) {
   return Box({ width: sizePx, height: sizePx, borderRadius: sizePx, color: color })
 }
 
-// Avatar circulaire d'une catégorie (emoji sur fond coloré).
+// Avatar circulaire d'une catégorie (emoji sur fond teinté de sa couleur).
 fn catAvatar(cat, sizePx) {
-  return Box({ width: sizePx, height: sizePx, borderRadius: sizePx, color: cat.color },
+  return Box({ width: sizePx, height: sizePx, borderRadius: sizePx, color: alpha(cat.color, "26") },
     Center(Text(cat.emoji, { fontSize: 18 }))
+  )
+}
+
+// Barre de progression horizontale (pct 0..100) — piste + remplissage.
+fn progressBar(pct, trackColor, fillColor, heightPx) {
+  let fill = pct
+  if (fill < 1) { fill = 1 }
+  let rest = 100 - pct
+  if (rest < 1) { rest = 1 }
+  return Box({ color: trackColor, borderRadius: heightPx },
+    Row({}, [
+        Expanded({ flex: fill }, Box({ color: fillColor, borderRadius: heightPx, height: heightPx })),
+        Expanded({ flex: rest }, Box({ height: heightPx }))
+    ])
   )
 }

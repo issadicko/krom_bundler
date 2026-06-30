@@ -23,9 +23,9 @@ fn chip(label) {
 // Ligne de métadonnées : ❤ likes · N vues.
 fn metaRow(likes, views) {
   return Row({ spacing: 8, crossAxisAlignment: "center" }, [
-    Icon("favorite", { size: 14, color: "#EF4444" }),
-    Text("" + likes, { fontSize: 12, color: T.muted }),
-    Text("·  " + views + " vues", { fontSize: 12, color: T.muted })
+      Icon("favorite", { size: 14, color: "#EF4444" }),
+      Text("" + likes, { fontSize: 12, color: T.muted }),
+      Text("·  " + views + " vues", { fontSize: 12, color: T.muted })
   ])
 }
 
@@ -43,9 +43,9 @@ fn loadingView() {
 fn errorView() {
   return Center(
     Column({ crossAxisAlignment: "center", mainAxisAlignment: "center", spacing: 10 }, [
-      Icon("warning", { size: 48, color: "#EF4444" }),
-      Text("Échec du chargement", { fontSize: 16, fontWeight: "600", color: T.muted }),
-      Text("Vérifie ta connexion réseau", { fontSize: 13, color: "#94A3B8" })
+        Icon("warning", { size: 48, color: "#EF4444" }),
+        Text("Échec du chargement", { fontSize: 16, fontWeight: "600", color: T.muted }),
+        Text("Vérifie ta connexion réseau", { fontSize: 13, color: "#94A3B8" })
     ])
   )
 }

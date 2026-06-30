@@ -2,8 +2,7 @@
 // Articles — liste via GET /posts (dummyjson.com).
 // res.data = { posts: [...], total, skip, limit }
 // ============================================================
-
-@use "../utils/theme"
+@use "../utils/theme.ks"
 
 let posts = List([])
 let state = Obs("loading")   // loading | ready | error

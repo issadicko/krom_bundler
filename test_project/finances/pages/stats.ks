@@ -1,19 +1,26 @@
 // ============================================================
-// Statistiques — bilan du mois + répartition des dépenses par
-// catégorie (barres proportionnelles via le flex des Expanded).
+// Statistiques — bilan d'un mois (navigable) + répartition des
+// dépenses par catégorie (barres proportionnelles).
 // ============================================================
 @use "../utils/ui.ks"
 @use "../utils/store.ks"
 
 let tick = Obs(0)
+let monthOffset = Obs(0)
 
 fn onInit() { tick.set(tick.value + 1) }
 fn onShow() { tick.set(tick.value + 1) }
 fn back() { ui.pop() }
+fn prevMonth() { monthOffset.set(monthOffset.value - 1) }
+fn nextMonth() { monthOffset.set(monthOffset.value + 1) }
+
+fn periodMY() {
+  return addMonths(month(), year(), monthOffset.value)
+}
 
 fn build() {
   return Scaffold({
-      appBar: AppBar({ title: "Statistiques du mois", backgroundColor: T.primary }),
+      appBar: AppBar({ title: "Statistiques", backgroundColor: T.primary }),
       backgroundColor: T.bg
     },
     Obx({ builder: "content" })
@@ -22,12 +29,14 @@ fn build() {
 
 fn content() {
   let v = tick.value
-  let items = monthItems(loadTx())
+  let off = monthOffset.value
+  let p = periodMY()
+  let items = monthItemsFor(loadTx(), p.m, p.y)
   let inc = sumByType(items, "income")
   let exp = sumByType(items, "expense")
   let cats = sortByTotalDesc(expenseByCategory(items))
 
-  let blocks = [ monthHeader(inc, exp) ]
+  let blocks = [ monthHeader(p, inc, exp) ]
 
   if (cats.length == 0) {
     blocks.add(Card({ borderRadius: 16, padding: 24, color: T.surface },
@@ -45,39 +54,50 @@ fn content() {
   )
 }
 
-fn monthHeader(inc, exp) {
+fn monthHeader(p, inc, exp) {
   let bal = inc - exp
-  return Card({ borderRadius: 16, padding: 18, color: T.primary },
+  return Box({ color: T.primary, borderRadius: 16, padding: 18 },
     Column({ crossAxisAlignment: "start", spacing: 12 }, [
-        Text("Bilan du mois", { fontSize: 13, color: "#DBEAFE" }),
-        Row({ spacing: 12 }, [
-            Expanded({ flex: 1 }, statBox("Revenus", money(inc), T.incomeBg, T.income)),
-            Expanded({ flex: 1 }, statBox("Dépenses", money(exp), T.expenseBg, T.expense))
+        Row({ crossAxisAlignment: "center" }, [
+            IconButton("chevron_left", { color: T.onPrimary, onTap: "prevMonth" }),
+            Expanded({ flex: 1 },
+              Center(Text(monthName(p.m) + " " + intDigits(p.y), { fontSize: 15, fontWeight: "600", color: T.onPrimary }))
+            ),
+            IconButton("chevron_right", { color: T.onPrimary, onTap: "nextMonth" })
         ]),
-        statBox("Épargne nette", money(bal), T.chipBg, T.primaryDark)
+        Row({ spacing: 12 }, [
+            Expanded({ flex: 1 }, statPill("Revenus", money(inc), T.income)),
+            Expanded({ flex: 1 }, statPill("Dépenses", money(exp), T.expense))
+        ]),
+        statWide("Épargne nette", money(bal))
     ])
   )
 }
 
-fn statBox(label, value, bg, fg) {
-  return Box({ color: bg, borderRadius: 12, padding: 12 },
+fn statPill(label, value, accent) {
+  return Box({ color: alpha(T.onPrimary, "1F"), borderRadius: 12, padding: 12 },
     Column({ crossAxisAlignment: "start", spacing: 4 }, [
-        Text(label, { fontSize: 12, color: fg }),
-        Text(value, { fontSize: 16, fontWeight: "bold", color: fg })
+        Row({ spacing: 6, crossAxisAlignment: "center" }, [
+            dot(accent, 8),
+            Text(label, { fontSize: 12, color: alpha(T.onPrimary, "CC") })
+        ]),
+        Text(value, { fontSize: 16, fontWeight: "bold", color: T.onPrimary })
+    ])
+  )
+}
+
+fn statWide(label, value) {
+  return Box({ color: alpha(T.onPrimary, "1F"), borderRadius: 12, padding: 12 },
+    Row({ mainAxisAlignment: "spaceBetween", crossAxisAlignment: "center" }, [
+        Text(label, { fontSize: 13, color: alpha(T.onPrimary, "CC") }),
+        Text(value, { fontSize: 16, fontWeight: "bold", color: T.onPrimary })
     ])
   )
 }
 
 fn categoryBar(c, totalExp) {
-  let pct = 0
-  if (totalExp > 0) { pct = floor(c.total * 100 / totalExp) }
-
-  let fillFlex = pct
-  if (fillFlex < 1) { fillFlex = 1 }
-  let restFlex = 100 - pct
-  if (restFlex < 1) { restFlex = 1 }
-
-  return Box({ color: T.surface, borderRadius: 14, padding: 14 },
+  let pct = pctInt(c.total, totalExp)
+  return Box({ color: T.surface, borderRadius: 14, padding: 14, borderColor: T.line, borderWidth: 1 },
     Column({ spacing: 10, crossAxisAlignment: "start" }, [
         Row({ crossAxisAlignment: "center", spacing: 10 }, [
             catAvatar(c, 34),
@@ -85,14 +105,7 @@ fn categoryBar(c, totalExp) {
             Text(money(c.total), { fontSize: 14, fontWeight: "bold", color: T.text })
         ]),
         Row({ crossAxisAlignment: "center", spacing: 10 }, [
-            Expanded({ flex: 1 },
-              Box({ color: T.bg, borderRadius: 6 },
-                Row({}, [
-                    Expanded({ flex: fillFlex }, Box({ color: c.color, borderRadius: 6, height: 10 })),
-                    Expanded({ flex: restFlex }, Box({ height: 10 }))
-                ])
-              )
-            ),
+            Expanded({ flex: 1 }, progressBar(pct, alpha(T.muted, "26"), c.color, 10)),
             Text(intDigits(pct) + "%", { fontSize: 12, fontWeight: "600", color: T.muted })
         ])
     ])

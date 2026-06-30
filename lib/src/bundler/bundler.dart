@@ -150,9 +150,35 @@ class Bundler {
   /// Minify the source — string-literal-aware (see [minifyKromSource]).
   String _minify(String source) => minifyKromSource(source);
 
+  /// A default Material 3 light `theme` map mirroring what the kmini_program
+  /// runtime injects, so validation can execute top-level code that builds a
+  /// palette from `theme.*` (e.g. `let T = { primary: theme.primary }`).
+  static const Map<String, Object?> _defaultThemeVars = {
+    'brightness': 'light',
+    'primary': '#6750A4', 'onPrimary': '#FFFFFF',
+    'primaryContainer': '#EADDFF', 'onPrimaryContainer': '#21005D',
+    'secondary': '#625B71', 'onSecondary': '#FFFFFF',
+    'secondaryContainer': '#E8DEF8', 'onSecondaryContainer': '#1D192B',
+    'tertiary': '#7D5260', 'onTertiary': '#FFFFFF',
+    'surface': '#FEF7FF', 'onSurface': '#1D1B20', 'onSurfaceVariant': '#49454F',
+    'surfaceContainerLowest': '#FFFFFF', 'surfaceContainerLow': '#F7F2FA',
+    'surfaceContainer': '#F3EDF7', 'surfaceContainerHigh': '#ECE6F0',
+    'surfaceContainerHighest': '#E6E0E9',
+    'inverseSurface': '#322F35', 'onInverseSurface': '#F5EFF7',
+    'inversePrimary': '#D0BCFF',
+    'error': '#B3261E', 'onError': '#FFFFFF',
+    'errorContainer': '#F9DEDC', 'onErrorContainer': '#410E0B',
+    'outline': '#79747E', 'outlineVariant': '#CAC4D0',
+  };
+
   /// Validate bundled output by parsing it
   Future<void> validate(String bundledSource) async {
     final engine = KSEngine();
+    // Stub host-injected globals so top-level code that reads them (the
+    // `theme` palette idiom, or `args`) validates instead of throwing
+    // "undefined variable". The runtime binds the real values.
+    engine.setVariable('theme', _defaultThemeVars);
+    engine.setVariable('args', null);
     final result = await engine.load(bundledSource, enableOptimizer: false);
     if (!result.success) {
       Logger.debug('Validation errors: ${result.errors}');

@@ -63,9 +63,14 @@ class ManifestBundler {
     // user gets clear, fail-fast errors.
     ManifestValidator.validate(manifest);
 
-    // Host custom widgets this app declares — stubbed during per-page validation.
-    _customWidgets =
-        (manifest['customWidgets'] as List<dynamic>?)?.cast<String>() ??
+    // Host custom widgets this app declares — stubbed during per-page
+    // validation. Accepts a name array or an object map (name -> {docs}).
+    final rawCustomWidgets = manifest['customWidgets'];
+    _customWidgets = rawCustomWidgets is Map
+        ? rawCustomWidgets.keys.map((e) => e.toString()).toList()
+        : (rawCustomWidgets as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
             const [];
 
     // Imports are on-demand: each page/component pulls exactly the utilities it

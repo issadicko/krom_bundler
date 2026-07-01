@@ -24,6 +24,9 @@ bool _isExcluded(String rel) {
   if (rel.endsWith('.symbols')) return true; // debug symbol maps
   if (rel == 'assets/NOTICES') return true; // 1.3 MB of licences, unused
   if (rel == '.last_build_id') return true;
+  // The dev server serves a no-op SW in place of this; embedding it is dead
+  // weight and would only invite the cache/reload loop it causes.
+  if (rel == 'flutter_service_worker.js') return true;
   return false;
 }
 

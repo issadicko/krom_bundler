@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
+import '../preview/embedded_preview.dart';
 import '../utils/logger.dart';
 
 /// Development server with hot reload support
@@ -185,7 +186,11 @@ class DevServer {
     Logger.info('Notified ${_clients.length} client(s)');
   }
 
-  /// Serve Flutter Web app
+  /// Serve the Flutter Web preview's `index.html`.
+  ///
+  /// Precedence: an on-disk `web_build` (so a preview dev iterating locally with
+  /// `make deploy-preview` wins), then the preview **embedded in the CLI binary**
+  /// (the distributed path — works out of the box), then a "build it" page.
   Response _serveFlutterApp() {
     final webBuildDir = _resolveWebBuildDir();
     final indexPath = p.join(webBuildDir, 'index.html');
@@ -194,14 +199,20 @@ class DevServer {
     if (file.existsSync()) {
       Logger.debug('Serving Flutter Web app from: $indexPath');
       return Response.ok(
-        file.readAsStringSync(),
+        file.readAsBytesSync(),
         headers: {'Content-Type': 'text/html'},
       );
     }
 
-    // Rendering is handled entirely by the Flutter web preview
-    // (krom_bundler_web). The dev server no longer ships an HTML renderer, so
-    // when the preview hasn't been built we just tell the user how to build it.
+    final embedded = EmbeddedPreview.read('index.html');
+    if (embedded != null) {
+      Logger.debug(
+          'Serving embedded Flutter Web preview (build ${EmbeddedPreview.buildId})');
+      return Response.ok(embedded, headers: {'Content-Type': 'text/html'});
+    }
+
+    // No on-disk build and nothing embedded (a source checkout that never ran
+    // the generator): tell the user how to build/embed the preview.
     Logger.warn('Flutter web preview not built at: $indexPath');
     return Response.ok(
       _previewMissingHtml(webBuildDir),
@@ -212,8 +223,9 @@ class DevServer {
   /// The mini-app project directory (where `manifest.json` lives).
   String get _projectDir => p.dirname(p.absolute(manifestPath));
 
-  /// Serve Flutter Web assets — and, as a fallback, the mini-app project's
-  /// own assets so relative `assets/…` references resolve in `krom dev`.
+  /// Serve Flutter Web assets — from an on-disk `web_build`, then the mini-app
+  /// project's own assets (so relative `assets/…` references resolve in
+  /// `krom dev`), then the preview embedded in the CLI binary.
   Response _serveFlutterAsset(String assetPath) {
     final webBuildDir = _resolveWebBuildDir();
     var file = File(p.join(webBuildDir, assetPath));
@@ -225,36 +237,43 @@ class DevServer {
       if (projectFile.existsSync()) file = projectFile;
     }
 
-    if (!file.existsSync()) {
-      return Response.notFound('Asset not found: $assetPath');
+    if (file.existsSync()) {
+      return Response.ok(
+        file.readAsBytesSync(),
+        headers: {'Content-Type': _contentTypeFor(assetPath)},
+      );
     }
 
-    // Determine content type
-    String contentType = 'application/octet-stream';
-    if (assetPath.endsWith('.js')) {
-      contentType = 'application/javascript';
-    } else if (assetPath.endsWith('.wasm')) {
-      contentType = 'application/wasm';
-    } else if (assetPath.endsWith('.json')) {
-      contentType = 'application/json';
-    } else if (assetPath.endsWith('.ico')) {
-      contentType = 'image/x-icon';
-    } else if (assetPath.endsWith('.png')) {
-      contentType = 'image/png';
-    } else if (assetPath.endsWith('.jpg') || assetPath.endsWith('.jpeg')) {
-      contentType = 'image/jpeg';
-    } else if (assetPath.endsWith('.gif')) {
-      contentType = 'image/gif';
-    } else if (assetPath.endsWith('.svg')) {
-      contentType = 'image/svg+xml';
-    } else if (assetPath.endsWith('.webp')) {
-      contentType = 'image/webp';
+    // Distributed CLI: no on-disk web_build — serve the embedded preview file.
+    final embedded = EmbeddedPreview.read(assetPath);
+    if (embedded != null) {
+      return Response.ok(
+        embedded,
+        headers: {'Content-Type': _contentTypeFor(assetPath)},
+      );
     }
 
-    return Response.ok(
-      file.readAsBytesSync(),
-      headers: {'Content-Type': contentType},
-    );
+    return Response.notFound('Asset not found: $assetPath');
+  }
+
+  /// MIME type for a preview asset path (best-effort by extension).
+  String _contentTypeFor(String path) {
+    if (path.endsWith('.js')) return 'application/javascript';
+    if (path.endsWith('.wasm')) return 'application/wasm';
+    if (path.endsWith('.json')) return 'application/json';
+    if (path.endsWith('.html')) return 'text/html';
+    if (path.endsWith('.ico')) return 'image/x-icon';
+    if (path.endsWith('.png')) return 'image/png';
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+    if (path.endsWith('.gif')) return 'image/gif';
+    if (path.endsWith('.svg')) return 'image/svg+xml';
+    if (path.endsWith('.webp')) return 'image/webp';
+    if (path.endsWith('.otf')) return 'font/otf';
+    if (path.endsWith('.ttf')) return 'font/ttf';
+    if (path.endsWith('.woff2')) return 'font/woff2';
+    if (path.endsWith('.woff')) return 'font/woff';
+    if (path.endsWith('.frag')) return 'text/plain';
+    return 'application/octet-stream';
   }
 
   /// Resolve the bundled Flutter-web preview (`web_build`). Searched in
@@ -305,11 +324,14 @@ class DevServer {
 <body>
   <h1>Aperçu Flutter non construit</h1>
   <p>Le rendu de <code>krom dev</code> est assuré par l'application Flutter web
-     (<code>krom_bundler_web</code>) — le serveur de dev n'embarque plus de
-     moteur de rendu HTML.</p>
-  <p>Construis et déploie l'aperçu, puis recharge cette page&nbsp;:</p>
+     (<code>krom_bundler_web</code>). Un <code>krom</code> distribué l'embarque et
+     n'a rien à construire&nbsp;; ce message n'apparaît que sur une copie source
+     où l'aperçu n'a pas encore été généré.</p>
+  <p>Régénère l'aperçu embarqué (recompile le CLI), puis recharge&nbsp;:</p>
+  <pre><code>cd krom_bundler_web &amp;&amp; make embed-preview</code></pre>
+  <p>Ou, pour du dev local sans recompiler le CLI&nbsp;:</p>
   <pre><code>cd krom_bundler_web &amp;&amp; make deploy-preview</code></pre>
-  <p class="muted">Attendu dans&nbsp;: <code>$expectedDir</code></p>
+  <p class="muted">Cherché sur disque dans&nbsp;: <code>$expectedDir</code></p>
 </body>
 </html>
 ''';

@@ -22,6 +22,11 @@ class ManifestBundler {
     this.minify = false,
   });
 
+  /// Host custom-widget names declared by the current project's manifest.
+  /// Set at the start of [bundleProjectToMap]; consumed when validating each
+  /// page so a top-level reference doesn't fail as "undefined".
+  List<String> _customWidgets = const [];
+
   /// Create a fresh Bundler to avoid _processed state leaking between bundles.
   Bundler _freshBundler() => Bundler(enableOptimizer: false, minify: false);
 
@@ -57,6 +62,11 @@ class ManifestBundler {
     // networkTimeout, subpackages) before doing any bundling work, so the
     // user gets clear, fail-fast errors.
     ManifestValidator.validate(manifest);
+
+    // Host custom widgets this app declares — stubbed during per-page validation.
+    _customWidgets =
+        (manifest['customWidgets'] as List<dynamic>?)?.cast<String>() ??
+            const [];
 
     // Imports are on-demand: each page/component pulls exactly the utilities it
     // `@use`s (transitively), nothing more. The legacy top-level `utils` list
@@ -262,7 +272,7 @@ class ManifestBundler {
       finalSource = _minify(finalSource);
     }
 
-    await bundler.validate(finalSource);
+    await bundler.validate(finalSource, customWidgets: _customWidgets);
 
     return finalSource;
   }

@@ -186,6 +186,10 @@ class ManifestBundler {
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
       if (manifest['permissions'] != null)
         'permissions': manifest['permissions'],
+      // Passed through so a host without the real builder (e.g. the web preview)
+      // can render a labeled placeholder instead of "Unknown widget".
+      if (manifest['customWidgets'] != null)
+        'customWidgets': manifest['customWidgets'],
       if (manifest['scopes'] != null) 'scopes': manifest['scopes'],
       if (manifest['authorizeUrl'] != null)
         'authorizeUrl': manifest['authorizeUrl'],

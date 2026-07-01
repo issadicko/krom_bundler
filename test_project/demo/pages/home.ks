@@ -21,19 +21,25 @@ fn build() {
 }
 
 // --- Hôte : custom widget + bindings -------------------------
+// Les bindings hôte (share / vault) ne sont appelés que sur ACTION, jamais au
+// build : la page s'affiche donc même sur un hôte qui ne les fournit pas (preview).
 fn hostCard() {
   return card(Column({ crossAxisAlignment: "stretch", spacing: 14 }, [
       sectionTitle("HÔTE (bindings + custom widget)"),
       Row({ crossAxisAlignment: "center", spacing: 10 }, [
           DemoBadge({ text: "Custom host widget", color: "#7C3AED" })
       ]),
-      resultChip("vault.get() → " + vault.get()),
+      Obx({ builder: "vaultLine" }),
       Row({ spacing: 10 }, [
-          Expanded({ flex: 1 }, Button("Partager", { onTap: "doShare", icon: "share", variant: "outlined", fullWidth: true })),
-          Expanded({ flex: 1 }, Button("Track", { onTap: "doTrack", icon: "check", variant: "outlined", fullWidth: true }))
-      ])
+          Expanded({ flex: 1 }, Button("Lire le coffre", { onTap: "doVault", icon: "lock", variant: "outlined", fullWidth: true })),
+          Expanded({ flex: 1 }, Button("Partager", { onTap: "doShare", icon: "share", variant: "outlined", fullWidth: true }))
+      ]),
+      Button("Envoyer un événement (track)", { onTap: "doTrack", variant: "text", color: T.primary })
   ]))
 }
+
+fn vaultLine() { return resultChip("vault: " + vaultVal.value) }
+fn doVault() { vaultVal.set(vault.get())  ui.toast("vault.get() lu") }
 
 // --- Saisie : widgets P1 -------------------------------------
 fn inputCard() {

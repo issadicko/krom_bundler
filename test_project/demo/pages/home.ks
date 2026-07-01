@@ -142,10 +142,10 @@ fn progressCard() {
         Obx({ builder: "stepperBlock" }),
         Text("Suivi de commande (Timeline)", { fontSize: 13, fontWeight: "600", color: T.muted }),
         Timeline({ items: [
-            { title: "Commande passée", time: "10:02", icon: "check", done: true },
-            { title: "Expédiée",        time: "14:20", icon: "check", done: true },
-            { title: "En livraison",    time: "—",     icon: "place", done: false }
-        ] }),
+              { title: "Commande passée", time: "10:02", icon: "check", done: true },
+              { title: "Expédiée",        time: "14:20", icon: "check", done: true },
+              { title: "En livraison",    time: "—",     icon: "place", done: false }
+            ] }),
         Alert({ variant: "warning", title: "Vérification requise", message: "Complétez votre KYC pour débloquer les virements.", actionLabel: "Compléter", onAction: "doTrack" }),
         Text("Code de confirmation (PinInput)", { fontSize: 13, fontWeight: "600", color: T.muted }),
         Row({ mainAxisAlignment: "center" }, [
@@ -161,10 +161,11 @@ fn gaugeBlock() {
 
 fn stepperBlock() {
   return Stepper({ direction: "horizontal", current: stepIdx.value, onStepTap: "onStep", steps: [
-      { label: "Panier",    icon: "cart" },
-      { label: "Livraison", icon: "truck" },
-      { label: "Paiement",  icon: "payment" }
-  ] })
+        { label: "Panier",    icon: "cart" },
+        { label: "Livraison", icon: "truck" },
+        { label: "Paiement",  icon: "payment" }
+      ]
+  })
 }
 
 fn pinLine() {

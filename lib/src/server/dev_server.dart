@@ -117,7 +117,12 @@ class DevServer {
     _clients.clear();
   }
 
-  /// No-cache middleware for dev server
+  /// Dev response headers: no-cache, and — crucially — allow the preview to be
+  /// framed. shelf sets `X-Frame-Options: SAMEORIGIN` by default, which makes a
+  /// browser REFUSE to render the preview inside the VSCode extension's
+  /// device-preview webview (a cross-origin frame). Override it with a value
+  /// browsers treat as "no restriction" and add `frame-ancestors *` so any host
+  /// can embed the dev preview.
   Middleware _noCacheMiddleware() {
     return (Handler handler) {
       return (Request request) async {
@@ -126,6 +131,8 @@ class DevServer {
           'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
           'Pragma': 'no-cache',
           'Expires': '0',
+          'X-Frame-Options': 'ALLOWALL',
+          'Content-Security-Policy': 'frame-ancestors *',
         });
       };
     };

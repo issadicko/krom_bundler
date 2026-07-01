@@ -1,30 +1,33 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
 import '../backend/backend_client.dart';
+import '../backend/project_ref.dart';
 import '../utils/config.dart';
 import '../utils/logger.dart';
 
-/// `krom bind` — bind a mini-app to a super-app (marketplace) with a PAT.
+/// `krom bind` — bind a mini-app to one or more super-apps (marketplaces)
+/// with a PAT. A mini-app can be bound to several super-apps; `--super-app`
+/// is repeatable.
 ///
-/// The app is identified by `--app` (a UUID or a slug), or, when omitted, by the
-/// `id` in the local manifest. A slug is resolved to its backend id; an unknown
-/// slug is an error (publish it first with `krom publish`).
+/// The app is identified by `--app` (a UUID or a slug), or, when omitted, by
+/// the local manifest (`appId` when linked, slug otherwise — with the usual
+/// self-healing write-back). An unknown app is an error (publish it first).
 class BindCommand extends Command<int> {
   @override
   final name = 'bind';
 
   @override
-  final description = 'Bind this mini-app to a super-app (marketplace).';
+  final description = 'Bind this mini-app to super-app(s) (marketplace).';
 
   BindCommand() {
     argParser
       ..addOption('app',
-          help: 'App id (UUID) or slug. Defaults to the manifest "id".')
-      ..addOption('super-app',
-          abbr: 's', help: 'Super-app id (UUID) to bind to.', mandatory: true)
+          help: 'App id (UUID) or slug. Defaults to the manifest identity.')
+      ..addMultiOption('super-app',
+          abbr: 's',
+          help: 'Super-app id(s) (UUID) to bind to. Repeatable.')
       ..addOption('manifest',
           abbr: 'm', help: 'Path to manifest.json', defaultsTo: 'manifest.json');
   }
@@ -46,34 +49,54 @@ class BindCommand extends Command<int> {
       return 1;
     }
 
-    final superAppId = (argResults!['super-app'] as String).trim();
-    var appRef = (argResults!['app'] as String?)?.trim();
-    final manifestPath = argResults!['manifest'] as String;
-
-    // Default the app to the manifest slug.
-    if (appRef == null || appRef.isEmpty) {
-      appRef = _slugFromManifest(manifestPath);
-      if (appRef == null) {
-        Logger.error('No --app given and manifest.json has no "id".');
-        return 1;
-      }
+    final superAppIds = (argResults!['super-app'] as List<String>)
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (superAppIds.isEmpty) {
+      Logger.error('At least one --super-app is required.');
+      return 1;
     }
+    final appRef = (argResults!['app'] as String?)?.trim();
+    final manifestPath = argResults!['manifest'] as String;
 
     final client = BackendClient(baseUrl: remoteUrl, token: token);
     try {
-      final appId = _looksLikeUuid(appRef)
-          ? appRef
-          : (await client.findAppBySlug(appRef))?.id;
+      final String? appId;
+      final String label;
+      if (appRef != null && appRef.isNotEmpty) {
+        appId = ManifestRef.looksLikeUuid(appRef)
+            ? appRef
+            : (await client.findAppBySlug(appRef))?.id;
+        label = appRef;
+      } else {
+        if (!File(manifestPath).existsSync()) {
+          Logger.error('No --app given and no manifest at $manifestPath.');
+          return 1;
+        }
+        final manifest = ManifestRef.load(manifestPath);
+        final app = await resolveProjectApp(
+          client: client,
+          manifest: manifest,
+          createIfMissing: false,
+        );
+        appId = app?.id;
+        label = manifest.slug ?? '?';
+      }
 
       if (appId == null) {
-        Logger.error('App "$appRef" not found on the backend.');
+        Logger.error('App "$label" not found on the backend.');
         Logger.hint('Publish it first with "krom publish".');
         return 1;
       }
 
-      Logger.step(1, 1, 'Binding $appRef to super-app $superAppId...');
-      await client.bind(appId: appId, superAppId: superAppId);
-      Logger.success('Bound $appRef to super-app $superAppId.');
+      var step = 0;
+      for (final superAppId in superAppIds) {
+        Logger.step(++step, superAppIds.length,
+            'Binding $label to super-app $superAppId...');
+        await client.bind(appId: appId, superAppId: superAppId);
+        Logger.success('Bound $label to super-app $superAppId.');
+      }
       return 0;
     } on BackendException catch (e) {
       Logger.error(
@@ -87,18 +110,4 @@ class BindCommand extends Command<int> {
       client.close();
     }
   }
-
-  String? _slugFromManifest(String path) {
-    try {
-      final m = jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
-      final slug = m['id']?.toString();
-      return (slug != null && slug.isNotEmpty) ? slug : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static final _uuid = RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
-  bool _looksLikeUuid(String v) => _uuid.hasMatch(v);
 }

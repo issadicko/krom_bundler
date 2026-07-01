@@ -175,4 +175,79 @@ void main() {
       expect(seen!.path, '/api/v1/apps/app-1/versions/ver-1/submit');
     });
   });
+
+  group('getApp', () {
+    test('returns the app on 200', () async {
+      final client = clientWith(MockClient((req) async {
+        expect(req.url.path, '/api/v1/apps/uuid-9');
+        return http.Response(
+            jsonEncode({'id': 'uuid-9', 'slug': 'wallet', 'name': 'Wallet'}),
+            200);
+      }));
+      final app = await client.getApp('uuid-9');
+      expect(app?.slug, 'wallet');
+    });
+
+    test('returns null on 404 (unknown or other tenant)', () async {
+      final client = clientWith(
+        MockClient((req) async => http.Response('not found', 404)),
+      );
+      expect(await client.getApp('nope'), isNull);
+    });
+
+    test('throws on server errors', () async {
+      final client = clientWith(
+        MockClient((req) async => http.Response('boom', 500)),
+      );
+      expect(() => client.getApp('x'), throwsA(isA<BackendException>()));
+    });
+  });
+
+  group('listSuperApps', () {
+    test('pages through all super-apps', () async {
+      final client = clientWith(MockClient((req) async {
+        expect(req.url.path, '/api/v1/super-apps');
+        final page = int.parse(req.url.queryParameters['page'] ?? '0');
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {'id': 'sa-$page', 'name': 'Super $page', 'status': 'ACTIVE'},
+            ],
+            'totalPages': 2,
+          }),
+          200,
+        );
+      }));
+
+      final apps = await client.listSuperApps();
+      expect(apps.map((a) => a.id), ['sa-0', 'sa-1']);
+      expect(apps.first.name, 'Super 0');
+      expect(apps.first.status, 'ACTIVE');
+    });
+  });
+
+  group('listBindings', () {
+    test('passes appId and filters foreign bindings client-side', () async {
+      final client = clientWith(MockClient((req) async {
+        expect(req.url.path, '/api/v1/bindings');
+        expect(req.url.queryParameters['appId'], 'app-1');
+        return http.Response(
+          jsonEncode({
+            'items': [
+              {'appId': 'app-1', 'superAppId': 'sa-1', 'isActive': true},
+              {'appId': 'other', 'superAppId': 'sa-2', 'isActive': true},
+              {'appId': 'app-1', 'superAppId': 'sa-3', 'isActive': false},
+            ],
+            'totalPages': 1,
+          }),
+          200,
+        );
+      }));
+
+      final bindings = await client.listBindings(appId: 'app-1');
+      expect(bindings.map((b) => b.superAppId), ['sa-1', 'sa-3']);
+      expect(bindings.first.isActive, isTrue);
+      expect(bindings.last.isActive, isFalse);
+    });
+  });
 }

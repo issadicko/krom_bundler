@@ -6,11 +6,13 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../backend/backend_client.dart';
+import '../backend/project_ref.dart';
 import '../bundler/asset_packager.dart';
 import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
 import '../utils/config.dart';
 import '../utils/logger.dart';
+import '../utils/project_cache.dart';
 
 /// `krom publish` — one-shot developer publish with a Personal Access Token:
 /// build the version package, create the app on the backend if it doesn't exist
@@ -31,8 +33,9 @@ class PublishCommand extends Command<int> {
     argParser
       ..addOption('manifest',
           abbr: 'm', help: 'Path to manifest.json', defaultsTo: 'manifest.json')
-      ..addOption('bind',
-          help: 'Super-app id (UUID) to bind this app to after publishing.')
+      ..addMultiOption('bind',
+          help: 'Super-app id(s) (UUID) to bind this app to after publishing. '
+              'Repeatable — a mini-app can be bound to several super-apps.')
       ..addFlag('submit',
           help: 'Submit the new version for review (DRAFT -> IN_REVIEW).',
           defaultsTo: false)
@@ -59,7 +62,10 @@ class PublishCommand extends Command<int> {
     }
 
     final manifestPath = argResults!['manifest'] as String;
-    final superAppId = (argResults!['bind'] as String?)?.trim();
+    final superAppIds = (argResults!['bind'] as List<String>)
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     final submit = argResults!['submit'] as bool;
     final build = argResults!['build'] as bool;
     final minify = argResults!['minify'] as bool;
@@ -70,25 +76,23 @@ class PublishCommand extends Command<int> {
       return 1;
     }
 
-    final Map<String, dynamic> manifest;
+    final ManifestRef manifest;
     try {
-      manifest = jsonDecode(await File(manifestPath).readAsString())
-          as Map<String, dynamic>;
+      manifest = ManifestRef.load(manifestPath);
     } catch (e) {
       Logger.error('Invalid manifest.json: $e');
       return 1;
     }
-
-    final slug = manifest['id']?.toString();
-    final appName = manifest['name']?.toString() ?? slug;
-    final description = manifest['description']?.toString();
-    if (slug == null || slug.isEmpty) {
+    if (manifest.slug == null) {
       Logger.error('manifest.json must have an "id" (used as the app slug).');
       return 1;
     }
+    final slug = manifest.slug!;
 
     final client = BackendClient(baseUrl: remoteUrl, token: token);
     try {
+      final steps = superAppIds.isNotEmpty ? 3 : 2;
+
       // 1. Build the signed-ready package (unless reusing an existing one).
       final _Package pkg = build
           ? await _buildPackage(manifestPath, minify: minify)
@@ -96,18 +100,14 @@ class PublishCommand extends Command<int> {
       Logger.keyValue('Version', pkg.version);
       Logger.keyValue('Package', p.basename(pkg.path));
 
-      // 2. Create the app if it doesn't exist yet.
-      Logger.step(1, superAppId != null ? 3 : 2, 'Resolving app "$slug"...');
-      final app = await client.ensureApp(
-        slug: slug,
-        name: appName ?? slug,
-        description: description,
-      );
+      // 2. Resolve the app: the manifest appId when valid, else by slug
+      //    (create-if-missing) — writing the UUID back into the manifest.
+      Logger.step(1, steps, 'Resolving app "$slug"...');
+      final app = (await resolveProjectApp(client: client, manifest: manifest))!;
       Logger.keyValue('App', '${app.name} (${app.id})');
 
       // 3. Upload the version (lands as DRAFT).
-      Logger.step(2, superAppId != null ? 3 : 2,
-          'Deploying version ${pkg.version} to $remoteUrl...');
+      Logger.step(2, steps, 'Deploying version ${pkg.version} to $remoteUrl...');
       final deployed = await client.deployPackage(
         appId: app.id,
         version: pkg.version,
@@ -115,6 +115,8 @@ class PublishCommand extends Command<int> {
         filename: p.basename(pkg.path),
       );
       Logger.success('Published ${pkg.version} (${deployed.status ?? 'DRAFT'}).');
+      ProjectCache(manifest.projectDir)
+          .recordPublish(appId: app.id, version: pkg.version);
 
       // 3b. Optionally submit for review (still not a validation).
       if (submit && deployed.id != null) {
@@ -124,11 +126,14 @@ class PublishCommand extends Command<int> {
         Logger.warn('Could not submit: the deploy response carried no version id.');
       }
 
-      // 4. Optionally bind to a super-app.
-      if (superAppId != null && superAppId.isNotEmpty) {
-        Logger.step(3, 3, 'Binding to super-app $superAppId...');
-        await client.bind(appId: app.id, superAppId: superAppId);
-        Logger.success('Bound ${app.slug} to super-app $superAppId.');
+      // 4. Optionally bind to super-apps (idempotent; a binding is app-level,
+      //    so re-publishing never needs a re-bind).
+      if (superAppIds.isNotEmpty) {
+        Logger.step(3, 3, 'Binding to ${superAppIds.length} super-app(s)...');
+        for (final superAppId in superAppIds) {
+          await client.bind(appId: app.id, superAppId: superAppId);
+          Logger.success('Bound ${app.slug} to super-app $superAppId.');
+        }
       }
 
       return 0;

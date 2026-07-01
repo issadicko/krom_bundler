@@ -49,7 +49,10 @@ void main(List<String> arguments) async {
     ..addCommand(WhoamiCommand())
     ..addCommand(DeployCommand())
     ..addCommand(PublishCommand())
-    ..addCommand(BindCommand());
+    ..addCommand(BindCommand())
+    ..addCommand(LinkCommand())
+    ..addCommand(SuperAppsCommand())
+    ..addCommand(BindingsCommand());
 
   try {
     final result = await runner.run(arguments);

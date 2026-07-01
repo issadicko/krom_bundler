@@ -11,3 +11,6 @@ export 'whoami_command.dart';
 export 'deploy_command.dart';
 export 'publish_command.dart';
 export 'bind_command.dart';
+export 'link_command.dart';
+export 'super_apps_command.dart';
+export 'bindings_command.dart';

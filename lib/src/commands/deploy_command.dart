@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as p;
+import '../backend/project_ref.dart';
 import '../utils/config.dart';
 import '../utils/logger.dart';
 
@@ -27,8 +28,8 @@ class DeployCommand extends Command<int> {
       ..addOption(
         'app-id',
         abbr: 'a',
-        help: 'The target App ID (UUID)',
-        mandatory: true,
+        help: 'The target App ID (UUID). Defaults to the "appId" of the '
+            'local manifest.json (written by "krom link"/"krom init").',
       );
   }
 
@@ -50,7 +51,12 @@ class DeployCommand extends Command<int> {
       return 1;
     }
 
-    final appId = argResults!['app-id'] as String;
+    final appId = (argResults!['app-id'] as String?) ?? _manifestAppId();
+    if (appId == null || appId.isEmpty) {
+      Logger.error('No App ID: pass -a <uuid> or link the project first.');
+      Logger.hint('"krom link" writes the appId into manifest.json.');
+      return 1;
+    }
     final filePath = (argResults!['file'] as String?) ?? _defaultFile();
 
     final file = File(filePath);
@@ -196,6 +202,15 @@ class DeployCommand extends Command<int> {
   }
 
   bool _isZip(String path) => p.extension(path).toLowerCase() == '.zip';
+
+  /// The `appId` of `./manifest.json`, when the project is linked.
+  String? _manifestAppId() {
+    try {
+      return ManifestRef.load('manifest.json').appId;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Default deploy target: the newest `*.zip` in `dist/`, else
   /// `dist/manifest.json`.

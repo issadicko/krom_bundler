@@ -13,6 +13,28 @@ class BackendApp {
   final String name;
 }
 
+/// A super-app of the tenant, as listed by `GET /super-apps`.
+class SuperApp {
+  const SuperApp({required this.id, required this.name, this.status});
+
+  final String id;
+  final String name;
+  final String? status;
+}
+
+/// An app ↔ super-app binding, as listed by `GET /bindings`.
+class AppBindingInfo {
+  const AppBindingInfo({
+    required this.appId,
+    required this.superAppId,
+    required this.isActive,
+  });
+
+  final String appId;
+  final String superAppId;
+  final bool isActive;
+}
+
 /// The version created by a deploy: its UUID [id], [version] string and
 /// lifecycle [status] (e.g. `DRAFT`).
 class DeployedVersion {
@@ -81,6 +103,50 @@ class BackendClient {
       final totalPages = (data['totalPages'] as num?)?.toInt() ?? 1;
       if (++page >= totalPages || items.isEmpty) return null;
     }
+  }
+
+  /// The app for [appId], or null when the backend answers 404/403 — unknown
+  /// id, or an app of another tenant (the backend hides those as 404).
+  Future<BackendApp?> getApp(String appId) async {
+    final resp = await _http.get(
+      Uri.parse('$baseUrl/api/v1/apps/$appId'),
+      headers: _authHeaders,
+    );
+    if (resp.statusCode == 404 || resp.statusCode == 403) return null;
+    if (resp.statusCode != 200) {
+      throw BackendException('Fetching app $appId failed',
+          statusCode: resp.statusCode, body: resp.body);
+    }
+    return _appFrom(jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  /// All super-apps of the tenant (paging through `GET /super-apps`).
+  Future<List<SuperApp>> listSuperApps() async {
+    final out = <SuperApp>[];
+    await _forEachPage('$baseUrl/api/v1/super-apps', (m) {
+      out.add(SuperApp(
+        id: m['id'].toString(),
+        name: (m['name'] ?? m['id']).toString(),
+        status: m['status']?.toString(),
+      ));
+    });
+    return out;
+  }
+
+  /// The bindings of [appId] (paging through `GET /bindings`). The `appId`
+  /// query param narrows server-side where supported; the client-side filter
+  /// keeps the result correct against backends that ignore it.
+  Future<List<AppBindingInfo>> listBindings({required String appId}) async {
+    final out = <AppBindingInfo>[];
+    await _forEachPage('$baseUrl/api/v1/bindings?appId=$appId', (m) {
+      if (m['appId']?.toString() != appId) return;
+      out.add(AppBindingInfo(
+        appId: appId,
+        superAppId: m['superAppId'].toString(),
+        isActive: m['isActive'] == true,
+      ));
+    });
+    return out;
   }
 
   /// Creates an app. Throws [BackendException] on failure (e.g. 409 slug taken).
@@ -188,6 +254,33 @@ class BackendClient {
   }
 
   void close() => _http.close();
+
+  /// Visits every item of a paged listing endpoint. [firstPageUrl] may already
+  /// carry query params; `page`/`size` are appended.
+  Future<void> _forEachPage(
+    String firstPageUrl,
+    void Function(Map<String, dynamic> item) visit,
+  ) async {
+    final sep = firstPageUrl.contains('?') ? '&' : '?';
+    var page = 0;
+    while (true) {
+      final resp = await _http.get(
+        Uri.parse('$firstPageUrl${sep}page=$page&size=100'),
+        headers: _authHeaders,
+      );
+      if (resp.statusCode != 200) {
+        throw BackendException('Listing failed',
+            statusCode: resp.statusCode, body: resp.body);
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final items = (data['items'] as List?) ?? const [];
+      for (final raw in items) {
+        visit(raw as Map<String, dynamic>);
+      }
+      final totalPages = (data['totalPages'] as num?)?.toInt() ?? 1;
+      if (++page >= totalPages || items.isEmpty) return;
+    }
+  }
 
   BackendApp _appFrom(Map<String, dynamic> m) => BackendApp(
         id: m['id'].toString(),

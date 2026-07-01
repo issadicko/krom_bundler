@@ -1,9 +1,17 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../backend/backend_client.dart';
+import '../backend/project_ref.dart';
+import '../utils/config.dart';
 import '../utils/logger.dart';
 
-/// Init command - creates a new mini-app project
+/// Init command - creates a new mini-app project.
+///
+/// When the CLI is connected (remote + PAT), the app is also created on the
+/// backend right away and its canonical UUID is written into the manifest as
+/// `appId` — the project is born linked. Offline (or with `--no-link`), the
+/// scaffold still works and `krom link` (or the first publish) attaches later.
 class InitCommand extends Command<int> {
   @override
   final name = 'init';
@@ -13,6 +21,13 @@ class InitCommand extends Command<int> {
 
   @override
   String get invocation => 'krom init <project_name>';
+
+  InitCommand() {
+    argParser.addFlag('link',
+        defaultsTo: true,
+        help: 'Also create the app on the backend (when connected) and write '
+            'its "appId" into the manifest.');
+  }
 
   @override
   Future<int> run() async {
@@ -86,6 +101,9 @@ class InitCommand extends Command<int> {
       Logger.fileCreated('$projectName/utils/helpers.ks');
       Logger.fileCreated('$projectName/README.md');
       Logger.newline();
+
+      await _linkToBackend(projectName);
+
       Logger.info('Next steps:');
       Logger.hint('cd $projectName');
       Logger.hint('krom dev');
@@ -96,6 +114,42 @@ class InitCommand extends Command<int> {
       Logger.error('Failed to create project: $e');
       return 1;
     }
+  }
+
+  /// Creates the app on the backend (find-or-create by slug) and writes its
+  /// UUID into the fresh manifest. Best-effort: any failure downgrades to a
+  /// hint pointing at `krom link` — init never fails because of the network.
+  Future<void> _linkToBackend(String projectName) async {
+    if (!(argResults!['link'] as bool)) return;
+    final config = KromConfig();
+    if (config.remoteUrl == null ||
+        config.remoteUrl!.isEmpty ||
+        !config.isAuthenticated) {
+      Logger.hint(
+          'Not connected to a backend — link later with "krom link".');
+      Logger.newline();
+      return;
+    }
+
+    final client =
+        BackendClient(baseUrl: config.remoteUrl!, token: config.authToken!);
+    try {
+      final existing = await client.findAppBySlug(projectName);
+      final app = existing ??
+          await client.createApp(
+              name: _toTitleCase(projectName), slug: projectName);
+      ManifestRef.load(p.join(projectName, 'manifest.json'))
+          .writeAppId(app.id);
+      Logger.success(existing != null
+          ? 'Attached to the existing backend app "$projectName" (${app.id}).'
+          : 'Created "$projectName" on ${config.remoteUrl} (appId ${app.id}).');
+    } catch (e) {
+      Logger.warn('Could not create the app on the backend: $e');
+      Logger.hint('Link it later with "krom link" (from the project folder).');
+    } finally {
+      client.close();
+    }
+    Logger.newline();
   }
 
   String _manifestTemplate(String projectName) => '''{

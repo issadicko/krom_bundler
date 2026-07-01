@@ -8,6 +8,7 @@ let seg = Obs("month")      // Segmented
 let dateVal = Obs("")       // DateField
 let progress = Obs(0.4)     // LinearProgress
 let removed = Obs(false)    // Swipeable
+let vaultVal = Obs("(appuie sur « Lire le coffre »)")  // binding hôte, lu à la demande
 
 fn onCur(v) { selCur.set(v) }
 fn onRadio(v) { radio.set(v) }

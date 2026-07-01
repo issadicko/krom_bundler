@@ -8,7 +8,12 @@ let seg = Obs("month")      // Segmented
 let dateVal = Obs("")       // DateField
 let progress = Obs(0.4)     // LinearProgress
 let removed = Obs(false)    // Swipeable
+let stepIdx = Obs(1)        // Stepper
+let pinDone = Obs("")       // PinInput
 let vaultVal = Obs("(appuie sur « Lire le coffre »)")  // binding hôte, lu à la demande
+
+fn onStep(i) { stepIdx.set(i) }
+fn onPin(v) { pinDone.set(v) }
 
 fn onCur(v) { selCur.set(v) }
 fn onRadio(v) { radio.set(v) }

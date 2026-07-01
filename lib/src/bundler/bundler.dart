@@ -171,15 +171,30 @@ class Bundler {
     'outline': '#79747E', 'outlineVariant': '#CAC4D0',
   };
 
-  /// Validate bundled output by parsing it
-  Future<void> validate(String bundledSource) async {
+  /// Validate bundled output by parsing it.
+  ///
+  /// [customWidgets] are host-provided widget names declared in the manifest;
+  /// they're stubbed so a top-level reference validates instead of throwing
+  /// "undefined variable" (the runtime injects the real builders).
+  Future<void> validate(
+    String bundledSource, {
+    List<String> customWidgets = const [],
+  }) async {
     final engine = KSEngine();
     // Stub host-injected globals so top-level code that reads them (the
     // `theme` palette idiom, or `args`) validates instead of throwing
     // "undefined variable". The runtime binds the real values.
     engine.setVariable('theme', _defaultThemeVars);
     engine.setVariable('args', null);
-    final result = await engine.load(bundledSource, enableOptimizer: false);
+
+    // Stub declared host custom widgets as no-op builders. Prepended for the
+    // validation load only — the emitted source is unchanged.
+    final stub = customWidgets
+        .map((n) => 'let $n = fn(props, children) { return null }')
+        .join('\n');
+    final source = stub.isEmpty ? bundledSource : '$stub\n$bundledSource';
+
+    final result = await engine.load(source, enableOptimizer: false);
     if (!result.success) {
       Logger.debug('Validation errors: ${result.errors}');
       throw BundlerException(

@@ -9,3 +9,5 @@ export 'login_command.dart';
 export 'logout_command.dart';
 export 'whoami_command.dart';
 export 'deploy_command.dart';
+export 'publish_command.dart';
+export 'bind_command.dart';

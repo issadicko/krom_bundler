@@ -47,7 +47,9 @@ void main(List<String> arguments) async {
     ..addCommand(LoginCommand())
     ..addCommand(LogoutCommand())
     ..addCommand(WhoamiCommand())
-    ..addCommand(DeployCommand());
+    ..addCommand(DeployCommand())
+    ..addCommand(PublishCommand())
+    ..addCommand(BindCommand());
 
   try {
     final result = await runner.run(arguments);

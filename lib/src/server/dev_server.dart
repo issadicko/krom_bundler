@@ -11,6 +11,18 @@ import '../bundler/manifest_bundler.dart';
 import '../preview/embedded_preview.dart';
 import '../utils/logger.dart';
 
+/// A no-op service worker served in place of Flutter's `flutter_service_worker.js`.
+/// It claims control then unregisters itself, so any previously-installed looping
+/// SW is torn down and no caching/reload loop can start.
+const String _noopServiceWorkerJs = '''
+// Krom dev: no-op service worker (prevents Flutter's SW cache/reload loop under
+// the dev server's no-store responses). Installs, then unregisters itself.
+self.addEventListener('install', function (e) { self.skipWaiting(); });
+self.addEventListener('activate', function (e) {
+  e.waitUntil(self.registration.unregister());
+});
+''';
+
 /// Development server with hot reload support
 class DevServer {
   final ManifestBundler manifestBundler;
@@ -102,6 +114,17 @@ class DevServer {
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         },
+      );
+    }
+
+    // Neutralise Flutter's service worker. Under the dev server's no-store
+    // responses (and especially inside the VSCode webview iframe) the real SW
+    // enters a cache/version reload loop that leaves the preview blank. Serve a
+    // no-op SW that unregisters itself so the page renders normally.
+    if (path == 'flutter_service_worker.js') {
+      return Response.ok(
+        _noopServiceWorkerJs,
+        headers: {'Content-Type': 'application/javascript'},
       );
     }
 

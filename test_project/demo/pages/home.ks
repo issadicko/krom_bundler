@@ -16,6 +16,7 @@ fn build() {
           hostCard(),
           inputCard(),
           displayCard(),
+          progressCard(),
           actionsCard()
       ])
     )
@@ -129,6 +130,48 @@ fn swipeRow() {
       ])
     )
   )
+}
+
+// --- Progression & feedback : nouveaux composants ------------
+fn progressCard() {
+  return card(Column({ crossAxisAlignment: "stretch", spacing: 16 }, [
+        sectionTitle("PROGRESSION & FEEDBACK (Gauge, Stepper, Timeline, Alert, PinInput)"),
+        Row({ mainAxisAlignment: "center", crossAxisAlignment: "center" }, [
+            Obx({ builder: "gaugeBlock" })
+        ]),
+        Obx({ builder: "stepperBlock" }),
+        Text("Suivi de commande (Timeline)", { fontSize: 13, fontWeight: "600", color: T.muted }),
+        Timeline({ items: [
+            { title: "Commande passée", time: "10:02", icon: "check", done: true },
+            { title: "Expédiée",        time: "14:20", icon: "check", done: true },
+            { title: "En livraison",    time: "—",     icon: "place", done: false }
+        ] }),
+        Alert({ variant: "warning", title: "Vérification requise", message: "Complétez votre KYC pour débloquer les virements.", actionLabel: "Compléter", onAction: "doTrack" }),
+        Text("Code de confirmation (PinInput)", { fontSize: 13, fontWeight: "600", color: T.muted }),
+        Row({ mainAxisAlignment: "center" }, [
+            PinInput({ length: 4, obscure: true, onComplete: "onPin" })
+        ]),
+        Obx({ builder: "pinLine" })
+  ]))
+}
+
+fn gaugeBlock() {
+  return Gauge({ value: progress.value, label: "Budget", danger: 0.9, size: 120, color: T.primary })
+}
+
+fn stepperBlock() {
+  return Stepper({ direction: "horizontal", current: stepIdx.value, onStepTap: "onStep", steps: [
+      { label: "Panier",    icon: "cart" },
+      { label: "Livraison", icon: "truck" },
+      { label: "Paiement",  icon: "payment" }
+  ] })
+}
+
+fn pinLine() {
+  let v = pinDone.value
+  let s = "en attente…"
+  if (v != "") { s = "code saisi : " + v }
+  return resultChip("PIN: " + s)
 }
 
 // --- Actions : confirm / snack / résultat --------------------

@@ -7,16 +7,18 @@
 @use "../utils/state.ks"
 
 fn build() {
-  return ScrollView({ padding: { left: 16, right: 16, top: 16, bottom: 28 } },
-    Column({ crossAxisAlignment: "stretch", spacing: 4 }, [
-        Text("SDK Demo", { fontSize: 26, fontWeight: "bold", color: T.text }),
-        Text("Toutes les features récentes du SDK.", { fontSize: 14, color: T.muted }),
-        SizedBox({ height: 16 }),
-        hostCard(),
-        inputCard(),
-        displayCard(),
-        actionsCard()
-    ])
+  return Scaffold({ backgroundColor: T.bg },
+    ScrollView({ padding: { left: 16, right: 16, top: 16, bottom: 28 } },
+      Column({ crossAxisAlignment: "stretch", spacing: 4 }, [
+          Text("SDK Demo", { fontSize: 26, fontWeight: "bold", color: T.text }),
+          Text("Toutes les features récentes du SDK.", { fontSize: 14, color: T.muted }),
+          SizedBox({ height: 16 }),
+          hostCard(),
+          inputCard(),
+          displayCard(),
+          actionsCard()
+      ])
+    )
   )
 }
 
@@ -25,16 +27,16 @@ fn build() {
 // build : la page s'affiche donc même sur un hôte qui ne les fournit pas (preview).
 fn hostCard() {
   return card(Column({ crossAxisAlignment: "stretch", spacing: 14 }, [
-      sectionTitle("HÔTE (bindings + custom widget)"),
-      Row({ crossAxisAlignment: "center", spacing: 10 }, [
-          DemoBadge({ text: "Custom host widget", color: "#7C3AED" })
-      ]),
-      Obx({ builder: "vaultLine" }),
-      Row({ spacing: 10 }, [
-          Expanded({ flex: 1 }, Button("Lire le coffre", { onTap: "doVault", icon: "lock", variant: "outlined", fullWidth: true })),
-          Expanded({ flex: 1 }, Button("Partager", { onTap: "doShare", icon: "share", variant: "outlined", fullWidth: true }))
-      ]),
-      Button("Envoyer un événement (track)", { onTap: "doTrack", variant: "text", color: T.primary })
+        sectionTitle("HÔTE (bindings + custom widget)"),
+        Row({ crossAxisAlignment: "center", spacing: 10 }, [
+            DemoBadge({ text: "Custom host widget", color: "#7C3AED" })
+        ]),
+        Obx({ builder: "vaultLine" }),
+        Row({ spacing: 10 }, [
+            Expanded({ flex: 1 }, Button("Lire le coffre", { onTap: "doVault", icon: "lock", variant: "outlined", fullWidth: true })),
+            Expanded({ flex: 1 }, Button("Partager", { onTap: "doShare", icon: "share", variant: "outlined", fullWidth: true }))
+        ]),
+        Button("Envoyer un événement (track)", { onTap: "doTrack", variant: "text", color: T.primary })
   ]))
 }
 
@@ -44,44 +46,44 @@ fn doVault() { vaultVal.set(vault.get())  ui.toast("vault.get() lu") }
 // --- Saisie : widgets P1 -------------------------------------
 fn inputCard() {
   return card(Column({ crossAxisAlignment: "stretch", spacing: 16 }, [
-      sectionTitle("SAISIE (Select, Radio, Chip, Segmented, Date)"),
-      Obx({ builder: "currencyField" }),
-      Obx({ builder: "planField" }),
-      Obx({ builder: "chipField" }),
-      Obx({ builder: "segField" }),
-      Obx({ builder: "dateField" })
+        sectionTitle("SAISIE (Select, Radio, Chip, Segmented, Date)"),
+        Obx({ builder: "currencyField" }),
+        Obx({ builder: "planField" }),
+        Obx({ builder: "chipField" }),
+        Obx({ builder: "segField" }),
+        Obx({ builder: "dateField" })
   ]))
 }
 
 fn currencyField() {
   return field("Devise", Select({ value: selCur.value, onChange: "onCur", prefixIcon: "payment", options: [
-      { label: "EUR €", value: "eur" },
-      { label: "USD $", value: "usd" },
-      { label: "XOF", value: "xof" }
-  ] }))
+          { label: "EUR €", value: "eur" },
+          { label: "USD $", value: "usd" },
+          { label: "XOF", value: "xof" }
+        ] }))
 }
 
 fn planField() {
   return field("Formule", RadioGroup({ value: radio.value, onChange: "onRadio", options: [
-      { label: "Standard", value: "std" },
-      { label: "Express", value: "exp" }
-  ] }))
+          { label: "Standard", value: "std" },
+          { label: "Express", value: "exp" }
+        ] }))
 }
 
 fn chipField() {
   let cur = chipSel.value
   return field("Filtre (Chip + Wrap)", Wrap({ spacing: 8, runSpacing: 8 }, [
-      Chip("Toutes", { selected: cur == "all", onTap: "pickChip", arg: "all" }),
-      Chip("Perso", { selected: cur == "perso", onTap: "pickChip", arg: "perso" }),
-      Chip("Pro", { selected: cur == "pro", onTap: "pickChip", arg: "pro" })
+        Chip("Toutes", { selected: cur == "all", onTap: "pickChip", arg: "all" }),
+        Chip("Perso", { selected: cur == "perso", onTap: "pickChip", arg: "perso" }),
+        Chip("Pro", { selected: cur == "pro", onTap: "pickChip", arg: "pro" })
   ]))
 }
 
 fn segField() {
   return field("Période (Segmented)", Segmented({ value: seg.value, onChange: "onSeg", options: [
-      { label: "Mois", value: "month" },
-      { label: "Année", value: "year" }
-  ] }))
+          { label: "Mois", value: "month" },
+          { label: "Année", value: "year" }
+        ] }))
 }
 
 fn dateField() {
@@ -94,17 +96,17 @@ fn dateField() {
 // --- Affichage : widgets P2 ----------------------------------
 fn displayCard() {
   return card(Column({ crossAxisAlignment: "stretch", spacing: 16 }, [
-      sectionTitle("AFFICHAGE (Avatar, Badge, Progress, Expansion, Swipe)"),
-      Row({ crossAxisAlignment: "center", spacing: 14 }, [
-          Avatar({ text: "AT", size: 44, color: "#6366F1" }),
-          Badge({ count: 3 }, Icon("notifications", { size: 28, color: T.text })),
-          Expanded({ flex: 1 }, Obx({ builder: "progressLine" }))
-      ]),
-      Button("Avancer la progression", { onTap: "bumpProgress", variant: "text", color: T.primary }),
-      ExpansionTile({ title: "Détails (ExpansionTile)", icon: "info" }, [
-          Text("Contenu repliable rendu à la demande.", { fontSize: 14, color: T.muted })
-      ]),
-      Obx({ builder: "swipeRow" })
+        sectionTitle("AFFICHAGE (Avatar, Badge, Progress, Expansion, Swipe)"),
+        Row({ crossAxisAlignment: "center", spacing: 14 }, [
+            Avatar({ text: "AT", size: 44, color: "#6366F1" }),
+            Badge({ count: 3 }, Icon("notifications", { size: 28, color: T.text })),
+            Expanded({ flex: 1 }, Obx({ builder: "progressLine" }))
+        ]),
+        Button("Avancer la progression", { onTap: "bumpProgress", variant: "text", color: T.primary }),
+        ExpansionTile({ title: "Détails (ExpansionTile)", icon: "info" }, [
+            Text("Contenu repliable rendu à la demande.", { fontSize: 14, color: T.muted })
+        ]),
+        Obx({ builder: "swipeRow" })
   ]))
 }
 
@@ -132,10 +134,10 @@ fn swipeRow() {
 // --- Actions : confirm / snack / résultat --------------------
 fn actionsCard() {
   return card(Column({ crossAxisAlignment: "stretch", spacing: 10 }, [
-      sectionTitle("ACTIONS (confirm, snack, résultat)"),
-      Button("Confirmer une action", { onTap: "doConfirm", variant: "outlined", fullWidth: true }),
-      Button("Supprimer (snack Undo)", { onTap: "doSnack", variant: "outlined", color: T.danger, fullWidth: true }),
-      Button("Valider et fermer", { onTap: "doFinish", color: T.primary, fullWidth: true })
+        sectionTitle("ACTIONS (confirm, snack, résultat)"),
+        Button("Confirmer une action", { onTap: "doConfirm", variant: "outlined", fullWidth: true }),
+        Button("Supprimer (snack Undo)", { onTap: "doSnack", variant: "outlined", color: T.danger, fullWidth: true }),
+        Button("Valider et fermer", { onTap: "doFinish", color: T.primary, fullWidth: true })
   ]))
 }
 

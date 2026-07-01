@@ -121,8 +121,13 @@ class DevServer {
   /// framed. shelf sets `X-Frame-Options: SAMEORIGIN` by default, which makes a
   /// browser REFUSE to render the preview inside the VSCode extension's
   /// device-preview webview (a cross-origin frame). Override it with a value
-  /// browsers treat as "no restriction" and add `frame-ancestors *` so any host
-  /// can embed the dev preview.
+  /// browsers treat as unknown → no restriction.
+  ///
+  /// Deliberately NO `Content-Security-Policy: frame-ancestors` header: in CSP,
+  /// `*` only matches *network* schemes (http/https/ws/wss), so `frame-ancestors
+  /// *` still BLOCKS embedding from a `vscode-webview://` ancestor
+  /// (blocked:origin). Absence of the directive = no framing restriction, which
+  /// is what a dev preview wants.
   Middleware _noCacheMiddleware() {
     return (Handler handler) {
       return (Request request) async {
@@ -132,7 +137,6 @@ class DevServer {
           'Pragma': 'no-cache',
           'Expires': '0',
           'X-Frame-Options': 'ALLOWALL',
-          'Content-Security-Policy': 'frame-ancestors *',
         });
       };
     };

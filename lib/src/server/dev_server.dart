@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -11,16 +12,51 @@ import '../bundler/manifest_bundler.dart';
 import '../preview/embedded_preview.dart';
 import '../utils/logger.dart';
 
-/// A no-op service worker served in place of Flutter's `flutter_service_worker.js`.
-/// It claims control then unregisters itself, so any previously-installed looping
-/// SW is torn down and no caching/reload loop can start.
+/// A self-healing no-op service worker served in place of Flutter's
+/// `flutter_service_worker.js`. On activation it clears every cache, unregisters
+/// itself, and reloads any controlled pages once — so a previously-installed SW
+/// that was serving stale/blank cached responses is fully torn down and the page
+/// reloads fresh from the network.
 const String _noopServiceWorkerJs = '''
-// Krom dev: no-op service worker (prevents Flutter's SW cache/reload loop under
-// the dev server's no-store responses). Installs, then unregisters itself.
+// Krom dev: self-healing no-op service worker. Flutter's real SW serves the
+// preview from cache — under the dev server that cache goes stale and the page
+// renders blank with no network requests. Nuke caches + unregister + reload.
 self.addEventListener('install', function (e) { self.skipWaiting(); });
 self.addEventListener('activate', function (e) {
-  e.waitUntil(self.registration.unregister());
+  e.waitUntil((async function () {
+    try {
+      var keys = await caches.keys();
+      await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    } catch (_) {}
+    try { await self.registration.unregister(); } catch (_) {}
+    try {
+      var wins = await self.clients.matchAll({ type: 'window' });
+      wins.forEach(function (c) { c.navigate(c.url); });
+    } catch (_) {}
+  })());
 });
+''';
+
+/// Page-side cleanup injected into every served `index.html`: unregisters any
+/// service worker and clears caches on load. Runs in the page context (not a
+/// SW), so it kills a stuck SW as soon as one fresh network load of index.html
+/// happens — no dependency on the browser re-fetching the SW script.
+const String _swCleanupHeadScript = '''
+<script>
+(function () {
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); })
+        .catch(function () {});
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); })
+        .catch(function () {});
+    }
+  } catch (e) {}
+})();
+</script>
 ''';
 
 /// Development server with hot reload support
@@ -221,17 +257,14 @@ class DevServer {
 
     if (file.existsSync()) {
       Logger.debug('Serving Flutter Web app from: $indexPath');
-      return Response.ok(
-        file.readAsBytesSync(),
-        headers: {'Content-Type': 'text/html'},
-      );
+      return _htmlWithSwCleanup(file.readAsBytesSync());
     }
 
     final embedded = EmbeddedPreview.read('index.html');
     if (embedded != null) {
       Logger.debug(
           'Serving embedded Flutter Web preview (build ${EmbeddedPreview.buildId})');
-      return Response.ok(embedded, headers: {'Content-Type': 'text/html'});
+      return _htmlWithSwCleanup(embedded);
     }
 
     // No on-disk build and nothing embedded (a source checkout that never ran
@@ -241,6 +274,19 @@ class DevServer {
       _previewMissingHtml(webBuildDir),
       headers: {'Content-Type': 'text/html'},
     );
+  }
+
+  /// Serve [bytes] as `index.html` with the page-side SW-cleanup script injected
+  /// right after `<head>`, so any stuck service worker is torn down on load.
+  Response _htmlWithSwCleanup(List<int> bytes) {
+    final html = utf8.decode(bytes, allowMalformed: true);
+    final head = RegExp(r'<head[^>]*>', caseSensitive: false).firstMatch(html);
+    final injected = head != null
+        ? html.substring(0, head.end) +
+            _swCleanupHeadScript +
+            html.substring(head.end)
+        : _swCleanupHeadScript + html;
+    return Response.ok(injected, headers: {'Content-Type': 'text/html'});
   }
 
   /// The mini-app project directory (where `manifest.json` lives).

@@ -1,7 +1,7 @@
 {
   "id": "demo",
   "name": "SDK Demo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Showcase des features SDK : custom widget, bindings, résultat, widgets P1/P2.",
   "author": "Krom",
 

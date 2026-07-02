@@ -21,9 +21,8 @@ class DeployCommand extends Command<int> {
       ..addOption(
         'file',
         abbr: 'f',
-        help: 'Path to the version package (.zip) or bundled manifest (.json). '
-            'Defaults to the most recent package in dist/, falling back to '
-            'dist/manifest.json.',
+        help: 'Path to the version package (.zip). '
+            'Defaults to the most recent package in dist/.',
       )
       ..addOption(
         'app-id',
@@ -58,23 +57,30 @@ class DeployCommand extends Command<int> {
       return 1;
     }
     final filePath = (argResults!['file'] as String?) ?? _defaultFile();
+    if (filePath == null) {
+      Logger.error('No package found in dist/.');
+      Logger.hint('Run "krom build" first to generate the package.');
+      return 1;
+    }
+
+    if (!_isZip(filePath)) {
+      Logger.error('Only .zip packages can be deployed: $filePath');
+      Logger.hint('Run "krom build" to generate a signed package in dist/.');
+      return 1;
+    }
 
     final file = File(filePath);
     if (!await file.exists()) {
-      Logger.error('Package/manifest file not found: $filePath');
+      Logger.error('Package file not found: $filePath');
       Logger.hint('Run "krom build" first to generate the package.');
       return 1;
     }
 
     final uri = Uri.parse('$remoteUrl/api/v1/apps/$appId/versions');
 
-    // A .zip is the signed-ready package: upload as multipart/form-data with a
-    // "package" file part and a "version" text part. A .json is a bare manifest
-    // and is sent as the legacy JSON body for backward compatibility.
-    if (_isZip(filePath)) {
-      return _deployPackage(uri, file, token, remoteUrl);
-    }
-    return _deployManifestJson(uri, file, token, remoteUrl);
+    // The .zip is the signed-ready package: upload as multipart/form-data with
+    // a "package" file part and a "version" text part.
+    return _deployPackage(uri, file, token, remoteUrl);
   }
 
   /// Upload the ZIP package via multipart/form-data.
@@ -110,42 +116,6 @@ class DeployCommand extends Command<int> {
 
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
-      return _handleResponse(response, version);
-    } catch (e) {
-      Logger.error('Connection failed: $e');
-      return 1;
-    }
-  }
-
-  /// Legacy path: POST the raw manifest JSON as the request body.
-  Future<int> _deployManifestJson(
-    Uri uri,
-    File file,
-    String token,
-    String remoteUrl,
-  ) async {
-    final content = await file.readAsString();
-    Map<String, dynamic> manifest;
-    try {
-      manifest = jsonDecode(content) as Map<String, dynamic>;
-    } catch (e) {
-      Logger.error('Invalid JSON in manifest file: $e');
-      return 1;
-    }
-
-    final version = manifest['version']?.toString() ?? 'unknown';
-    Logger.step(1, 1, 'Deploying version $version to $remoteUrl...');
-
-    try {
-      final response = await http.post(
-        uri,
-        headers: {
-          'accept': '*/*',
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: content,
-      );
       return _handleResponse(response, version);
     } catch (e) {
       Logger.error('Connection failed: $e');
@@ -212,9 +182,8 @@ class DeployCommand extends Command<int> {
     }
   }
 
-  /// Default deploy target: the newest `*.zip` in `dist/`, else
-  /// `dist/manifest.json`.
-  String _defaultFile() {
+  /// Default deploy target: the newest `*.zip` in `dist/`, if any.
+  String? _defaultFile() {
     final dist = Directory('dist');
     if (dist.existsSync()) {
       final zips = dist
@@ -226,6 +195,6 @@ class DeployCommand extends Command<int> {
             b.statSync().modified.compareTo(a.statSync().modified));
       if (zips.isNotEmpty) return zips.first.path;
     }
-    return p.join('dist', 'manifest.json');
+    return null;
   }
 }

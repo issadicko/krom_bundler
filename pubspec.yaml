@@ -16,6 +16,7 @@ dependencies:
   
   # HTTP server
   shelf: ^1.4.0
+  qr: ^3.0.1               # terminal QR for `krom dev` (Krom Go scan)
   shelf_static: ^1.1.0
   shelf_web_socket: ^1.0.0
   

@@ -63,6 +63,23 @@ class ManifestRef {
         '${const JsonEncoder.withIndent('  ').convert(_json)}\n');
   }
 
+  /// Rewrites the manifest `version` in place (same key order, 2-space
+  /// indent) — the publish `--bump` path.
+  void writeVersion(String version) {
+    _json['version'] = version;
+    File(path).writeAsStringSync(
+        '${const JsonEncoder.withIndent('  ').convert(_json)}\n');
+  }
+
+  /// `1.2.3` → `1.2.4` (any `-pre`/`+build` suffix is dropped). Null when
+  /// [version] isn't x.y.z-shaped — the caller should fail loudly instead of
+  /// guessing.
+  static String? bumpPatch(String version) {
+    final m = RegExp(r'^(\d+)\.(\d+)\.(\d+)').firstMatch(version.trim());
+    if (m == null) return null;
+    return '${m[1]}.${m[2]}.${int.parse(m[3]!) + 1}';
+  }
+
   static final _uuid = RegExp(
       r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
   static bool looksLikeUuid(String v) => _uuid.hasMatch(v);

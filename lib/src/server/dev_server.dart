@@ -69,7 +69,14 @@ class DevServer {
   HttpServer? _server;
   DirectoryWatcher? _watcher;
   final List<WebSocketChannel> _clients = [];
+
+  /// Clients that sent a `hello` frame (Krom Go devices): they understand dev
+  /// envelopes (bundle-error overlays) on top of raw manifest pushes. The web
+  /// preview never sends one and keeps the historical manifest-only protocol.
+  final Set<WebSocketChannel> _devClients = {};
+
   String _currentManifest = '{}';
+  String? _lastBundleError;
 
   DevServer({
     required this.manifestBundler,
@@ -203,14 +210,18 @@ class DevServer {
       webSocket.sink.add(_currentManifest);
 
       webSocket.stream.listen(
-        (message) {},
+        (message) => _handleClientMessage(webSocket, message),
         onDone: () {
           _clients.remove(webSocket);
+          if (_devClients.remove(webSocket)) {
+            print('\u{1F4F1} [info] device disconnected');
+          }
           Logger.debug(
               'WebSocket client disconnected (${_clients.length} remaining)');
         },
         onError: (e) {
           _clients.remove(webSocket);
+          _devClients.remove(webSocket);
           Logger.debug(
               'WebSocket client error: $e (${_clients.length} remaining)');
         },
@@ -229,22 +240,74 @@ class DevServer {
       if (event.path.endsWith('.ks') || event.path.endsWith('manifest.json')) {
         Logger.fileChanged(p.basename(event.path));
         final timer = Logger.startTimer();
-        await _rebundle();
+        final ok = await _rebundle();
         timer.stop();
-        _notifyClients();
+        if (ok) {
+          _notifyClients();
+        }
         Logger.debug('Rebundle took ${Logger.formatDuration(timer.elapsed)}');
       }
     });
   }
 
-  /// Rebundle the project
-  Future<void> _rebundle() async {
+  /// Rebundle the project. Returns false on a bundle error — the old manifest
+  /// is kept and connected devices get a red error overlay instead of a
+  /// silent no-op reload.
+  Future<bool> _rebundle() async {
     try {
       _currentManifest = await manifestBundler.bundleProject(manifestPath);
+      _lastBundleError = null;
       Logger.success('Manifest updated');
+      return true;
     } catch (e) {
+      _lastBundleError = e.toString();
       Logger.error('Bundle error: $e');
-      // Keep old manifest on error
+      _notifyDevError(e.toString());
+      return false;
+    }
+  }
+
+  /// Messages FROM clients. `hello` announces a Krom Go device (and opts it
+  /// into dev envelopes); `log` forwards a device-side print/error into this
+  /// terminal — the \u{1F4F1} marker lets the VSCode extension route those
+  /// lines to its "Krom Device" channel.
+  void _handleClientMessage(WebSocketChannel client, dynamic message) {
+    if (message is! String) return;
+    Map<String, dynamic> frame;
+    try {
+      final decoded = jsonDecode(message);
+      if (decoded is! Map<String, dynamic>) return;
+      frame = decoded;
+    } catch (_) {
+      return;
+    }
+
+    switch (frame['type']) {
+      case 'hello':
+        _devClients.add(client);
+        final device = frame['device']?.toString() ?? 'device';
+        print('\u{1F4F1} [info] $device connected');
+        // A device joining while the bundle is broken sees the overlay now.
+        final error = _lastBundleError;
+        if (error != null) client.sink.add(_errorFrame(error));
+      case 'log':
+        const levels = {'info', 'warn', 'error'};
+        final level = levels.contains(frame['level']) ? frame['level'] : 'info';
+        final device = frame['device']?.toString();
+        final text = frame['message']?.toString() ?? '';
+        print('\u{1F4F1} [$level]${device != null ? ' $device —' : ''} $text');
+    }
+  }
+
+  String _errorFrame(String message) =>
+      jsonEncode({'type': 'krom-dev-error', 'message': message});
+
+  /// Bundle errors go only to dev clients (Krom Go): the web preview speaks
+  /// the historical manifest-only protocol and must not receive envelopes.
+  void _notifyDevError(String message) {
+    final frame = _errorFrame(message);
+    for (final client in _devClients) {
+      client.sink.add(frame);
     }
   }
 

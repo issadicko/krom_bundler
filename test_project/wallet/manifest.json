@@ -1,15 +1,17 @@
 {
   "id": "wallet",
+  "appId": "f4e8bb39-a5b0-46f8-a326-81aaf881b7f6",
   "name": "Wallet",
   "version": "1.0.4",
   "description": "Prototype néobanque — solde, opérations, détail (bottom sheet) et dépenses.",
   "author": "Krom",
-
   "entry": "home",
-
   "pages": {
-    "home": { "name": "Wallet", "source": "pages/home.ks", "icon": "home" }
+    "home": {
+      "name": "Wallet",
+      "source": "pages/home.ks",
+      "icon": "home"
+    }
   },
-
   "permissions": []
 }

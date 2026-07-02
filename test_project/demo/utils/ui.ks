@@ -2,7 +2,7 @@
 // Thème hôte (injecté) + helpers de mise en page.
 // ============================================================
 let T = {
-  bg: "#FFFFFF",
+  bg: theme.surface,
   card: theme.surfaceContainerHigh,
   cardAlt: theme.surfaceContainerHighest,
   text: theme.onSurface,

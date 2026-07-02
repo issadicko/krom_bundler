@@ -71,6 +71,31 @@ void main() {
     });
   });
 
+  group('version bump', () {
+    test('bumpPatch increments the patch and drops suffixes', () {
+      expect(ManifestRef.bumpPatch('1.2.3'), '1.2.4');
+      expect(ManifestRef.bumpPatch('0.0.9'), '0.0.10');
+      expect(ManifestRef.bumpPatch('2.0.0-beta+42'), '2.0.1');
+      expect(ManifestRef.bumpPatch('abc'), isNull);
+      expect(ManifestRef.bumpPatch('1.2'), isNull);
+    });
+
+    test('writeVersion rewrites in place, preserving key order', () {
+      final path = writeManifest({
+        'id': 'wallet',
+        'appId': _uuid,
+        'name': 'Wallet',
+        'version': '1.0.0',
+      });
+      ManifestRef.load(path).writeVersion('1.0.1');
+      final decoded =
+          jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
+      expect(decoded.keys.toList(), ['id', 'appId', 'name', 'version']);
+      expect(decoded['version'], '1.0.1');
+      expect(ManifestRef.load(path).version, '1.0.1');
+    });
+  });
+
   group('resolveProjectApp', () {
     test('trusts a valid manifest appId (single GET, no slug lookup)', () async {
       final paths = <String>[];

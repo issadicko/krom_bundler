@@ -41,6 +41,10 @@ class PublishCommand extends Command<int> {
           defaultsTo: false)
       ..addFlag('build',
           help: 'Build a fresh package before publishing.', defaultsTo: true)
+      ..addFlag('bump',
+          help: 'When the version already exists on the backend (409), bump '
+              'the patch version in manifest.json, rebuild and retry once.',
+          defaultsTo: false)
       ..addFlag('minify', help: 'Minify the build.', defaultsTo: false);
   }
 
@@ -68,6 +72,7 @@ class PublishCommand extends Command<int> {
         .toList();
     final submit = argResults!['submit'] as bool;
     final build = argResults!['build'] as bool;
+    final bump = argResults!['bump'] as bool;
     final minify = argResults!['minify'] as bool;
 
     if (!File(manifestPath).existsSync()) {
@@ -106,17 +111,50 @@ class PublishCommand extends Command<int> {
       final app = (await resolveProjectApp(client: client, manifest: manifest))!;
       Logger.keyValue('App', '${app.name} (${app.id})');
 
-      // 3. Upload the version (lands as DRAFT).
-      Logger.step(2, steps, 'Deploying version ${pkg.version} to $remoteUrl...');
-      final deployed = await client.deployPackage(
-        appId: app.id,
-        version: pkg.version,
-        zipBytes: pkg.bytes,
-        filename: p.basename(pkg.path),
-      );
-      Logger.success('Published ${pkg.version} (${deployed.status ?? 'DRAFT'}).');
+      // 3. Upload the version (lands as DRAFT). On a 409 with --bump, the
+      //    patch version is bumped in the manifest, rebuilt and retried once.
+      var package = pkg;
+      DeployedVersion deployed;
+      try {
+        Logger.step(2, steps, 'Deploying version ${package.version} to $remoteUrl...');
+        deployed = await client.deployPackage(
+          appId: app.id,
+          version: package.version,
+          zipBytes: package.bytes,
+          filename: p.basename(package.path),
+        );
+      } on BackendException catch (e) {
+        if (e.statusCode != 409) rethrow;
+        if (!bump) {
+          Logger.error('Version ${package.version} already exists.');
+          Logger.hint('Re-run with --bump to publish it as the next patch '
+              'version automatically.');
+          return 1;
+        }
+        if (!build) {
+          Logger.error('Version ${package.version} already exists, and --bump '
+              'needs to rebuild — drop --no-build.');
+          return 1;
+        }
+        final next = ManifestRef.bumpPatch(package.version);
+        if (next == null) {
+          Logger.error('Cannot bump non-semver version "${package.version}".');
+          return 1;
+        }
+        Logger.warn('Version ${package.version} already exists — bumping to $next.');
+        manifest.writeVersion(next);
+        package = await _buildPackage(manifestPath, minify: minify);
+        Logger.step(2, steps, 'Deploying version ${package.version} to $remoteUrl...');
+        deployed = await client.deployPackage(
+          appId: app.id,
+          version: package.version,
+          zipBytes: package.bytes,
+          filename: p.basename(package.path),
+        );
+      }
+      Logger.success('Published ${package.version} (${deployed.status ?? 'DRAFT'}).');
       ProjectCache(manifest.projectDir)
-          .recordPublish(appId: app.id, version: pkg.version);
+          .recordPublish(appId: app.id, version: package.version);
 
       // 3b. Optionally submit for review (still not a validation).
       if (submit && deployed.id != null) {

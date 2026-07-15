@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:krom_bundler/krom_bundler.dart';
 
-const String kromVersion = '0.1.0';
+const String kromVersion = '0.1.1';
 
 void main(List<String> arguments) async {
   // Load config

@@ -3,13 +3,19 @@ description: CLI tool for bundling KromLang scripts with dev server support.
 version: 0.1.0
 publish_to: none
 
+# Installed command name (dart pub global activate / dart compile exe -> `krom`).
+executables:
+  krom: krom_bundler
+
 environment:
   sdk: ^3.0.0
 
 dependencies:
-  # KromLang core (local path)
+  # KromLang core — resolved from the public repo so CI can build the binaries.
   krom_script:
-    path: ../krom-lang
+    git:
+      url: https://github.com/issadicko/krom-lang.git
+      ref: v1.0.0
   
   # CLI framework
   args: ^2.4.0

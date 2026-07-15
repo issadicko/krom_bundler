@@ -62,8 +62,9 @@ dart run bin/krom_bundler.dart --help
 
 La publication des binaires est automatisée : pousser un tag `vX.Y.Z` déclenche
 le workflow [`release.yml`](.github/workflows/release.yml) qui compile `krom`
-pour macOS (arm64/x64), Linux (x64/arm64) et Windows (x64), puis attache les
-binaires + `SHA256SUMS` à la Release GitHub.
+pour macOS (arm64/x64), Linux (x64/arm64) et Windows (x64). Chaque plateforme
+attache **indépendamment** son binaire (+ son `.sha256`) à la Release GitHub —
+un runner lent ou indisponible ne bloque donc pas les autres.
 
 ## Licence
 

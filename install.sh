@@ -57,8 +57,8 @@ fetch "${base}/${asset}" "${tmp}/${BIN}" \
   || err "Téléchargement impossible (${base}/${asset}). La release existe-t-elle pour ${os}-${arch} ?"
 
 # --- verify checksum (best-effort) -------------------------------------------
-if fetch "${base}/SHA256SUMS" "${tmp}/SHA256SUMS" 2>/dev/null; then
-  expected="$(grep " ${asset}\$" "${tmp}/SHA256SUMS" 2>/dev/null | awk '{print $1}')"
+if fetch "${base}/${asset}.sha256" "${tmp}/sum" 2>/dev/null; then
+  expected="$(awk '{print $1}' "${tmp}/sum")"
   if [ -n "${expected:-}" ]; then
     if command -v sha256sum >/dev/null 2>&1; then
       actual="$(sha256sum "${tmp}/${BIN}" | awk '{print $1}')"

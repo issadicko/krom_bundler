@@ -2,7 +2,10 @@ name: release
 
 # Compile the `krom` CLI to a native, self-contained binary for each OS/arch
 # and attach them to the GitHub Release when a `vX.Y.Z` tag is pushed.
-# The install.sh script downloads the right asset for the user's platform.
+#
+# Resilient design: each build job publishes its OWN binary (+ .sha256) directly
+# to the release, so a slow or unavailable runner (e.g. the retiring macOS Intel
+# pool) never blocks the other platforms. install.sh downloads the right asset.
 on:
   push:
     tags:
@@ -11,9 +14,27 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  create_release:
+    name: ensure release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the release if it does not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+                 --title "krom ${TAG#v}" --generate-notes
+
   build:
     name: build ${{ matrix.asset }}
+    needs: create_release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -37,31 +58,20 @@ jobs:
       - name: Compile native executable
         shell: bash
         run: dart compile exe bin/krom_bundler.dart -o "${{ matrix.asset }}"
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
-          if-no-files-found: error
-
-  release:
-    name: publish release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-      - name: Generate SHA256SUMS
-        working-directory: dist
-        run: sha256sum krom-* > SHA256SUMS
-      - name: Create / update GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/krom-*
-            dist/SHA256SUMS
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+      - name: Checksum
+        shell: bash
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+          else
+            shasum -a 256 "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+          fi
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" \
+            "${{ matrix.asset }}" "${{ matrix.asset }}.sha256" \
+            --repo "$GITHUB_REPOSITORY" --clobber

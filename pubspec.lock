@@ -156,11 +156,10 @@ packages:
   krom_script:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "v1.0.0"
-      resolved-ref: "8a59cd0c2a0923a9d0c4449ec4bba88807e216d1"
-      url: "https://github.com/issadicko/krom-lang.git"
-    source: git
+      name: krom_script
+      sha256: "8891095a43ea86b7614a8027ea26397f88a15303c1995e6a33d0df976aefddfe"
+      url: "https://pub.dev"
+    source: hosted
     version: "1.0.0"
   lints:
     dependency: "direct dev"

@@ -11,11 +11,8 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
-  # KromLang core — resolved from the public repo so CI can build the binaries.
-  krom_script:
-    git:
-      url: https://github.com/issadicko/krom-lang.git
-      ref: v1.0.0
+  # KromLang core, from pub.dev (no repo access needed to build).
+  krom_script: ^1.0.0
   
   # CLI framework
   args: ^2.4.0

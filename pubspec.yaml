@@ -1,6 +1,6 @@
 name: krom_bundler
 description: CLI tool for bundling KromLang scripts with dev server support.
-version: 0.1.1
+version: 0.2.0
 publish_to: none
 
 # Installed command name (dart pub global activate / dart compile exe -> `krom`).

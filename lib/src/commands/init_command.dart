@@ -31,11 +31,14 @@ class InitCommand extends Command<int> {
       ..addOption('template',
           abbr: 't',
           help: 'Project template.',
-          allowed: ['default', 'tabbed', 'list-detail'],
+          allowed: ['default', 'tabbed', 'list-detail', 'form', 'dashboard', 'onboarding'],
           allowedHelp: {
-            'default': 'Single page with a counter and a reusable component.',
+            'default': 'Themed starter: a welcome card and a reactive counter.',
             'tabbed': 'Floating tab bar (TabHostNav), one component per tab.',
             'list-detail': 'A list page navigating to a detail page (args).',
+            'form': 'A form: text field, select, switch, live summary and submit.',
+            'dashboard': 'A data dashboard: stat cards, BarChart and Gauge.',
+            'onboarding': 'A PageView carousel with dots and a "Get started" button.',
           },
           defaultsTo: 'default');
   }
@@ -172,15 +175,54 @@ class InitCommand extends Command<int> {
           'utils/ui.ks': _themeUtils,
           'utils/data.ks': _listData,
         };
+      case 'form':
+        return {
+          'manifest.json': _singlePageManifest(projectName, 'form', 'edit'),
+          'pages/form.ks': _formPage,
+          'utils/ui.ks': _themeUtils,
+        };
+      case 'dashboard':
+        return {
+          'manifest.json': _singlePageManifest(projectName, 'dashboard', 'dashboard'),
+          'pages/dashboard.ks': _dashboardPage,
+          'utils/ui.ks': _themeUtils,
+        };
+      case 'onboarding':
+        return {
+          'manifest.json': _singlePageManifest(projectName, 'onboarding', 'star'),
+          'pages/onboarding.ks': _onboardingPage,
+          'utils/ui.ks': _themeUtils,
+        };
       default:
         return {
           'manifest.json': _manifestTemplate(projectName),
           'pages/home.ks': _homePageTemplate,
           'components/app_button.ks': _buttonComponentTemplate,
-          'utils/helpers.ks': _helpersTemplate,
+          'utils/ui.ks': _themeUtils,
         };
     }
   }
+
+  /// Manifest for a single-page template whose entry page is [page] (source
+  /// `pages/<page>.ks`) shown with the [icon] tab glyph. No deprecated `utils`
+  /// array — shared code is pulled in per page via `@use`.
+  String _singlePageManifest(String projectName, String page, String icon) => '''{
+  "id": "$projectName",
+  "name": "${_toTitleCase(projectName)}",
+  "version": "1.0.0",
+  "description": "A KromLang mini-app",
+  "author": "",
+  "entry": "$page",
+  "pages": {
+    "$page": {
+      "name": "${_toTitleCase(projectName)}",
+      "source": "pages/$page.ks",
+      "icon": "$icon"
+    }
+  },
+  "permissions": []
+}
+''';
 
   // --- tabbed template ------------------------------------------------------
 
@@ -214,14 +256,14 @@ fn build() {
   return Scaffold({ backgroundColor: T.bg },
     TabHostNav({
         floating: true,
-        showLabels: false,
+        showLabels: true,
         backgroundColor: T.card,
-        selectedColor: T.text,
+        selectedColor: T.primary,
         unselectedColor: T.muted,
         tabs: [
-          { icon: "home",   builder: "homeTab" },
-          { icon: "store",  builder: "exploreTab" },
-          { icon: "person", builder: "profileTab" }
+          { icon: "home",   label: "Accueil",  builder: "homeTab" },
+          { icon: "store",  label: "Explorer", builder: "exploreTab" },
+          { icon: "person", label: "Profil",   builder: "profileTab" }
         ]
     })
   )
@@ -256,9 +298,15 @@ let counter = Obs(0)
 
 fn homeTab() {
   return ScrollView({ padding: { left: 16, right: 16, top: 16, bottom: 110 } },
-    Column({ spacing: 16 }, [
+    Column({ spacing: 16, crossAxisAlignment: "stretch" }, [
         sectionTitle("Bienvenue 👋"),
-        card(Column({ spacing: 10 }, [
+        Box({ gradient: { from: T.primary, to: T.primary, angle: 45 },
+              borderRadius: 18, padding: 20 },
+          Column({ spacing: 4, crossAxisAlignment: "start" }, [
+              Text("Solde disponible", { color: "#FFFFFFCC", fontSize: 13 }),
+              Text("45 000 F CFA", { color: "#FFFFFF", fontSize: 26, fontWeight: "bold" })
+          ])),
+        card(Column({ spacing: 10, crossAxisAlignment: "center" }, [
             Text("Compteur réactif", { color: T.muted, fontSize: 13 }),
             Obx({ builder: "counterValue" }),
             Button("Incrémenter", { onTap: "increment", color: T.primary })
@@ -351,12 +399,9 @@ fn itemById(id) {
 
 fn build() {
   let rows = ITEMS.map(fn(item) { return itemRow(item) })
-  return Scaffold({ backgroundColor: T.bg },
+  return Scaffold({ backgroundColor: T.bg, appBar: AppBar({ title: "Articles" }) },
     ScrollView({ padding: { left: 16, right: 16, top: 16, bottom: 24 } },
-      Column({ spacing: 12 }, [
-          sectionTitle("Articles"),
-          Column({ spacing: 10 }, rows)
-      ])
+      Column({ spacing: 10, crossAxisAlignment: "stretch" }, rows)
     )
   )
 }
@@ -419,96 +464,194 @@ fn goBack() {
   "version": "1.0.0",
   "description": "A KromLang mini-app",
   "author": "",
-  
   "entry": "home",
-  
   "pages": {
     "home": {
-      "name": "Home",
+      "name": "${_toTitleCase(projectName)}",
       "source": "pages/home.ks",
       "icon": "home"
     }
   },
-  
-  "utils": [
-    "utils/helpers.ks"
-  ],
-  
   "permissions": []
 }
 ''';
 
-  static const _homePageTemplate = '''// Home page
-@use "../components/app_button"
+  static const _homePageTemplate = '''// Page d'accueil — thème de l'hôte (clair/sombre auto), compteur réactif.
+@use "../utils/ui.ks"
+@use "../components/app_button.ks"
 
 let counter = Obs(0)
 
 fn build() {
-  return Box({ color: "#f5f5f5", height: "infinity", width: "infinity" }, [
-    Column({ spacing: 24, mainAxisAlignment: "center", crossAxisAlignment: "center" }, [
-      Text("Welcome to KromLang! 🚀", { 
-        fontSize: 24, 
-        fontWeight: "bold", 
-        color: "#333" 
-      }),
-      
-      Obx({ builder: "counterBuilder" }),
-      
-      Row({ spacing: 12 }, [
-        AppButton("Increment", "#4CAF50", "onIncrement"),
-        AppButton("Decrement", "#f44336", "onDecrement")
+  return Scaffold({ backgroundColor: T.bg },
+    ScrollView({ padding: { left: 20, right: 20, top: 28, bottom: 28 } },
+      Column({ spacing: 18, crossAxisAlignment: "stretch" }, [
+        sectionTitle("Bienvenue sur Krom 🚀"),
+        Text("Édite pages/home.ks et enregistre : l'aperçu se recharge tout seul.",
+             { color: T.muted, fontSize: 14 }),
+        card(Column({ spacing: 14, crossAxisAlignment: "center" }, [
+            Text("Compteur réactif", { color: T.muted, fontSize: 13 }),
+            Obx({ builder: "counterValue" }),
+            Row({ spacing: 12, mainAxisAlignment: "center" }, [
+                AppButton("−", "onDecrement"),
+                AppButton("+", "onIncrement")
+            ])
+        ]))
       ])
-    ])
-  ])
+    )
+  )
 }
 
-fn counterBuilder() {
-  return Text("Count: " + counter.value, { 
-    fontSize: 48, 
-    fontWeight: "bold", 
-    color: "#333" 
-  })
+fn counterValue() {
+  return Text("" + counter.value, { fontSize: 44, fontWeight: "bold", color: T.text })
 }
 
-fn onIncrement() {
-  counter.set(counter.value + 1)
-}
+fn onIncrement() { counter.set(counter.value + 1) }
+fn onDecrement() { counter.set(counter.value - 1) }
+''';
 
-fn onDecrement() {
-  counter.set(counter.value - 1)
+  static const _buttonComponentTemplate = '''// Composant bouton réutilisable, aligné sur le thème (T.primary).
+// Nommé AppButton pour ne pas masquer le widget Button du cœur.
+@use "../utils/ui.ks"
+
+fn AppButton(label, onTap) {
+  return InkWell({ onTap: onTap, borderRadius: 14 },
+    Box({ color: T.primary, borderRadius: 14,
+          padding: { left: 22, right: 22, top: 12, bottom: 12 } },
+      Text(label, { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" }))
+  )
 }
 ''';
 
-  static const _buttonComponentTemplate = '''// Reusable button component
-// Named AppButton to avoid conflict with core Button widget
-fn AppButton(label, color, onTap) {
-  return InkWell({ onTap: onTap, borderRadius: 8 }, [
-    Box({ 
-      padding: 16, 
-      borderRadius: 8, 
-      color: color 
-    }, [
-      Text(label, { 
-        fontSize: 16, 
-        fontWeight: "bold", 
-        color: "white" 
-      })
-    ])
-  ])
+  // --- form template --------------------------------------------------------
+
+  static const _formPage = '''// Formulaire — champs, état réactif, résumé en direct, envoi.
+@use "../utils/ui.ks"
+
+let montant = Obs("")
+let motif = Obs("Loyer")
+let express = Obs(false)
+
+fn build() {
+  return Scaffold({ backgroundColor: T.bg, appBar: AppBar({ title: "Nouveau transfert" }) },
+    ScrollView({ padding: { left: 20, right: 20, top: 20, bottom: 24 } },
+      Column({ spacing: 18, crossAxisAlignment: "stretch" }, [
+        TextField({ labelText: "Montant (F CFA)", value: montant.value,
+                    onChange: "onMontant", keyboardType: "number", prefixIcon: "payment" }),
+        Select({ label: "Motif", options: ["Loyer", "Courses", "Transport", "Autre"],
+                 value: motif.value, onChange: "onMotif" }),
+        card(Row({ mainAxisAlignment: "spaceBetween", crossAxisAlignment: "center" }, [
+            Column({ spacing: 2, crossAxisAlignment: "start" }, [
+                Text("Envoi express", { fontWeight: "bold", color: T.text }),
+                Text("Reçu en quelques secondes", { fontSize: 12, color: T.muted })
+            ]),
+            Obx({ builder: "expressSwitch" })
+        ])),
+        Obx({ builder: "resume" }),
+        Button("Envoyer", { onTap: "envoyer", color: T.primary, fullWidth: true, variant: "filled" })
+      ])
+    )
+  )
+}
+
+fn expressSwitch() {
+  return Switch({ value: express.value, onChanged: "toggleExpress", activeColor: T.primary })
+}
+
+fn resume() {
+  let m = montant.value
+  if (m == "") { m = "0" }
+  // Pas de ternaire en KromScript côté runtime — un simple if fait l'affaire.
+  let mode = "standard"
+  if (express.value) { mode = "express" }
+  return Text("Envoi de " + m + " F CFA — " + motif.value + " (" + mode + ")",
+              { color: T.muted, fontSize: 13, textAlign: "center" })
+}
+
+fn onMontant(v) { montant.set(v) }
+fn onMotif(v) { motif.set(v) }
+fn toggleExpress(v) { express.set(v) }
+
+fn envoyer() { print("Transfert: " + montant.value + " / " + motif.value) }
+''';
+
+  // --- dashboard template ---------------------------------------------------
+
+  static const _dashboardPage = '''// Tableau de bord — cartes de stats, BarChart et Gauge.
+@use "../utils/ui.ks"
+
+fn statTile(label, valeur, teinte) {
+  return Expanded({ flex: 1 },
+    Box({ color: T.card, borderRadius: 16, padding: 16 },
+      Column({ spacing: 6, crossAxisAlignment: "start" }, [
+          Text(label, { fontSize: 12, color: T.muted }),
+          Text(valeur, { fontSize: 22, fontWeight: "bold", color: teinte })
+      ])))
+}
+
+fn build() {
+  return Scaffold({ backgroundColor: T.bg, appBar: AppBar({ title: "Tableau de bord" }) },
+    ScrollView({ padding: { left: 16, right: 16, top: 16, bottom: 24 } },
+      Column({ spacing: 16, crossAxisAlignment: "stretch" }, [
+        Row({ spacing: 12 }, [
+            statTile("Entrées", "+ 58 000", T.primary),
+            statTile("Sorties", "- 13 000", "#E24B4A")
+        ]),
+        card(Column({ spacing: 10, crossAxisAlignment: "stretch" }, [
+            sectionTitle("Revenus par mois"),
+            BarChart({ data: [
+                { label: "Mar", value: 51000 },
+                { label: "Avr", value: 47000 },
+                { label: "Mai", value: 33000 },
+                { label: "Jui", value: 58000 }
+              ], height: 170, barColor: T.primary, highlightIndex: 3, valuePrefix: "F " })
+        ])),
+        card(Row({ spacing: 16, crossAxisAlignment: "center" }, [
+            Gauge({ value: 0.62, size: 120, centerText: "62%", label: "du budget",
+                    color: T.primary, danger: 0.9 }),
+            Expanded({ flex: 1 },
+              Column({ spacing: 6, crossAxisAlignment: "start" }, [
+                  sectionTitle("Budget du mois"),
+                  Text("62 % consommé sur 200 000 F CFA.", { color: T.muted, fontSize: 13 })
+              ]))
+        ]))
+      ])
+    )
+  )
 }
 ''';
 
-  static const _helpersTemplate = '''// Utility functions
+  // --- onboarding template --------------------------------------------------
 
-fn formatNumber(num) {
-  return num
+  static const _onboardingPage = '''// Onboarding — carrousel PageView avec points + bouton Commencer.
+@use "../utils/ui.ks"
+
+fn slide(emoji, titre, texte) {
+  return Column({ spacing: 14, mainAxisAlignment: "center", crossAxisAlignment: "center" }, [
+      Text(emoji, { fontSize: 64 }),
+      Text(titre, { fontSize: 22, fontWeight: "bold", color: T.text, textAlign: "center" }),
+      Box({ width: 260 },
+        Text(texte, { fontSize: 14, color: T.muted, textAlign: "center" }))
+  ])
 }
 
-fn clamp(value, min, max) {
-  if (value < min) { return min }
-  if (value > max) { return max }
-  return value
+fn slide1() { return slide("👋", "Bienvenue", "Ta mini-app Krom, prête à être personnalisée.") }
+fn slide2() { return slide("⚡", "Ultra rapide", "Bundle à chaud et aperçu instantané sur ton téléphone.") }
+fn slide3() { return slide("🚀", "Publie", "krom publish, puis lie ta mini-app à une super-app.") }
+
+fn build() {
+  return Scaffold({ backgroundColor: T.bg },
+    Column({ spacing: 24, mainAxisAlignment: "center", crossAxisAlignment: "stretch" }, [
+        PageView({ height: 360, showDots: true, activeDotColor: T.primary,
+          pages: [ { builder: "slide1" }, { builder: "slide2" }, { builder: "slide3" } ]
+        }),
+        Box({ padding: { left: 24, right: 24 } },
+          Button("Commencer", { onTap: "commencer", color: T.primary, fullWidth: true, variant: "filled" }))
+    ])
+  )
 }
+
+fn commencer() { print("Onboarding terminé") }
 ''';
 
   String _readmeTemplate(String projectName) =>

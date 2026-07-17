@@ -3,13 +3,13 @@ const MANIFEST = 'flutter-app-manifest';
 const TEMP = 'flutter-temp-cache';
 const CACHE_NAME = 'flutter-app-cache';
 
-const RESOURCES = {"flutter_bootstrap.js": "d4d2775e3da05fbc2a133f5dd446a314",
+const RESOURCES = {"flutter_bootstrap.js": "058896942cdd861f83a1eaec8015ef0c",
 "version.json": "c0a068c6709f4221d4e1c4fba4953426",
-"index.html": "f235d2af4e5b899db5ebcc6db9431965",
-"/": "f235d2af4e5b899db5ebcc6db9431965",
-"main.dart.js": "1ae827ce8b000b7eedfd1e4c5a34c08d",
+"index.html": "5ae4df0f6944a9eacd69776dcd51ec06",
+"/": "5ae4df0f6944a9eacd69776dcd51ec06",
+"main.dart.js": "32a47a20ba99ec4cd3982fe8dcb8fb1b",
 "flutter.js": "24bc71911b75b5f8135c949e27a2984e",
-"assets/NOTICES": "e7eceb735886ed72d8457bde7e0d1528",
+"assets/NOTICES": "54516c36845381473193670cb8f29871",
 "assets/FontManifest.json": "7b2a36307916a9721811788013e65289",
 "assets/AssetManifest.bin.json": "a1fee2517bf598633e2f67fcf3e26c94",
 "assets/shaders/ink_sparkle.frag": "ecc85a2e95f5e9f53123dcaf8cb9b6ce",

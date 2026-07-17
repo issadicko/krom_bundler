@@ -51,4 +51,26 @@ void main() {
     expect((pages['list'] as Map)['script'], contains('fn openItem'));
     expect((pages['detail'] as Map)['script'], contains('fn goBack'));
   });
+
+  test('form template bundles and keeps its reactive builders', () async {
+    final bundle = await scaffoldAndBundle('form');
+    final source = ((bundle['pages'] as Map)['form'] as Map)['script'] as String;
+    for (final builder in ['expressSwitch', 'resume', 'envoyer']) {
+      expect(source, contains('fn $builder'), reason: 'tree-shaker dropped $builder');
+    }
+  });
+
+  test('dashboard template bundles', () async {
+    final bundle = await scaffoldAndBundle('dashboard');
+    expect((bundle['pages'] as Map).keys, contains('dashboard'));
+    expect(((bundle['pages'] as Map)['dashboard'] as Map)['script'], contains('fn statTile'));
+  });
+
+  test('onboarding template bundles and keeps every slide builder', () async {
+    final bundle = await scaffoldAndBundle('onboarding');
+    final source = ((bundle['pages'] as Map)['onboarding'] as Map)['script'] as String;
+    for (final builder in ['slide1', 'slide2', 'slide3', 'commencer']) {
+      expect(source, contains('fn $builder'), reason: 'tree-shaker dropped $builder');
+    }
+  });
 }

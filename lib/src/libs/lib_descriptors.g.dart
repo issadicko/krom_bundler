@@ -19,9 +19,9 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'forms': KromLibDescriptor(
     pack: 'forms',
-    version: '1.1.0',
+    version: '1.2.0',
     components: ['CurrencyField', 'Field', 'FieldError', 'FormBody', 'FormWizard', 'MaskedField', 'PhoneField', 'RatingField', 'SignaturePad', 'SubmitButton'],
-    modules: {'forms': ['digits', 'email', 'group', 'luhn', 'maxLength', 'minLength', 'phone', 'range', 'required', 'validate']},
+    modules: {'forms': ['digits', 'email', 'group', 'luhn', 'maxLength', 'minLength', 'phone', 'pickContact', 'range', 'required', 'validate']},
   ),
 };
 

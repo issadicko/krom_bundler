@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
@@ -437,10 +438,42 @@ class DevServer {
     candidates.add(p.join(Directory.current.path, 'web_build'));
 
     for (final c in candidates) {
-      if (Directory(c).existsSync()) return c;
+      if (Directory(c).existsSync()) {
+        _warnIfShadowingStale(c);
+        return c;
+      }
     }
     Logger.debug('web_build not found in: ${candidates.join(', ')}');
     return candidates.first;
+  }
+
+  /// Prévient quand un `web_build/` sur disque masque la préview embarquée
+  /// dans le binaire, et qu'il en diffère réellement.
+  ///
+  /// Cette précédence est voulue — qui développe la préview veut voir SON build.
+  /// Mais un `web_build/` oublié sert silencieusement une préview périmée, et le
+  /// symptôme est déroutant : un composant de lib pourtant embarqué s'affiche en
+  /// placeholder, ou une syntaxe que le runtime accepte est refusée.
+  ///
+  /// La comparaison porte sur le **contenu** de `main.dart.js`, pas sur
+  /// `.last_build_id` : ce marqueur est un hash de configuration, identique
+  /// entre deux builds du même projet à des semaines d'écart. S'y fier laisserait
+  /// passer précisément le cas qu'on cherche à détecter.
+  void _warnIfShadowingStale(String dir) {
+    if (!EmbeddedPreview.isAvailable) return; // rien à quoi comparer
+
+    final onDisk = File(p.join(dir, 'main.dart.js'));
+    final embedded = EmbeddedPreview.read('main.dart.js');
+    if (!onDisk.existsSync() || embedded == null) return;
+
+    final diskHash = sha256.convert(onDisk.readAsBytesSync()).toString();
+    final embeddedHash = sha256.convert(embedded).toString();
+    if (diskHash == embeddedHash) return;
+
+    Logger.warn('Préview servie depuis $dir, pas depuis le binaire.');
+    Logger.hint('Ce dossier a priorité sur la préview embarquée, et son '
+        'contenu en diffère. Si vous ne développez pas la préview elle-même, '
+        'renommez-le : il sert une version périmée.');
   }
 
   /// A small page shown when the Flutter web preview has not been built yet.

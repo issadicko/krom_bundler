@@ -1,6 +1,6 @@
 name: krom_bundler
 description: CLI tool for bundling KromLang scripts with dev server support.
-version: 0.2.0
+version: 0.3.0
 publish_to: none
 
 # Installed command name (dart pub global activate / dart compile exe -> `krom`).
@@ -12,13 +12,13 @@ environment:
 
 dependencies:
   # KromLang core, from pub.dev (no repo access needed to build).
-  krom_script: ^1.0.0
+  krom_script: ^1.0.1
   
   # CLI framework
-  args: ^2.4.0
+  args: ^2.7.0
   
   # HTTP server
-  shelf: ^1.4.0
+  shelf: ^1.4.2
   qr: ^3.0.1               # terminal QR for `krom dev` (Krom Go scan)
   shelf_static: ^1.1.0
   shelf_web_socket: ^1.0.0

@@ -173,12 +173,20 @@ class Bundler {
 
   /// Validate bundled output by parsing it.
   ///
-  /// [customWidgets] are host-provided widget names declared in the manifest;
-  /// they're stubbed so a top-level reference validates instead of throwing
-  /// "undefined variable" (the runtime injects the real builders).
+  /// [customWidgets] are host-provided widget names declared in the manifest —
+  /// plus, since the CLI embeds their descriptors, the components of every
+  /// domain lib the manifest `requires`. They're stubbed so a top-level
+  /// reference validates instead of throwing "undefined variable" (the runtime
+  /// injects the real builders).
+  ///
+  /// [modulePrelude] is raw KromScript stubbing host namespaces (`charts`,
+  /// `media`, …) so a top-level call to one of them validates too. At runtime
+  /// the bindings are injected *before* the script loads, so such a call has
+  /// always been legal — only the bundler could not see it.
   Future<void> validate(
     String bundledSource, {
     List<String> customWidgets = const [],
+    String modulePrelude = '',
   }) async {
     final engine = KSEngine();
     // Stub host-injected globals so top-level code that reads them (the
@@ -189,9 +197,11 @@ class Bundler {
 
     // Stub declared host custom widgets as no-op builders. Prepended for the
     // validation load only — the emitted source is unchanged.
-    final stub = customWidgets
-        .map((n) => 'let $n = fn(props, children) { return null }')
-        .join('\n');
+    final stub = [
+      ...customWidgets
+          .map((n) => 'let $n = fn(props, children) { return null }'),
+      if (modulePrelude.trim().isNotEmpty) modulePrelude.trim(),
+    ].join('\n');
     final source = stub.isEmpty ? bundledSource : '$stub\n$bundledSource';
 
     final result = await engine.load(source, enableOptimizer: false);

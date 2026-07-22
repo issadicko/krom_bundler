@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
+import '../libs/known_libs.dart';
 import '../utils/logger.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
@@ -22,10 +23,16 @@ class ManifestBundler {
     this.minify = false,
   });
 
-  /// Host custom-widget names declared by the current project's manifest.
-  /// Set at the start of [bundleProjectToMap]; consumed when validating each
-  /// page so a top-level reference doesn't fail as "undefined".
+  /// Host custom-widget names declared by the current project's manifest, plus
+  /// the components of every domain lib it `requires`. Set at the start of
+  /// [bundleProjectToMap]; consumed when validating each page so a top-level
+  /// reference doesn't fail as "undefined".
   List<String> _customWidgets = const [];
+
+  /// The domain packs the manifest declares in `requires`. Drives which lib
+  /// components and modules are known during validation, and lets an
+  /// undeclared-pack mistake be reported by name.
+  List<String> _libPacks = const [];
 
   /// Create a fresh Bundler to avoid _processed state leaking between bundles.
   Bundler _freshBundler() => Bundler(enableOptimizer: false, minify: false);
@@ -66,12 +73,24 @@ class ManifestBundler {
     // Host custom widgets this app declares — stubbed during per-page
     // validation. Accepts a name array or an object map (name -> {docs}).
     final rawCustomWidgets = manifest['customWidgets'];
-    _customWidgets = rawCustomWidgets is Map
+    final declaredWidgets = rawCustomWidgets is Map
         ? rawCustomWidgets.keys.map((e) => e.toString()).toList()
         : (rawCustomWidgets as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ??
-            const [];
+            const <String>[];
+
+    // Domain libs are embedded in the CLI: declaring a pack in `requires` is
+    // enough for its components to be known here, exactly as if they were core.
+    // Listing them again under `customWidgets` stays valid but is unnecessary.
+    _libPacks = ((manifest['requires'] as List<dynamic>?) ?? const [])
+        .map((e) => e.toString())
+        .where(KnownLibs.packs.contains)
+        .toList();
+    _customWidgets = {
+      ...declaredWidgets,
+      ...KnownLibs.componentsFor(_libPacks),
+    }.toList();
 
     // Imports are on-demand: each page/component pulls exactly the utilities it
     // `@use`s (transitively), nothing more. The legacy top-level `utils` list
@@ -186,6 +205,12 @@ class ManifestBundler {
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
       if (manifest['permissions'] != null)
         'permissions': manifest['permissions'],
+      // Les packs de capacité exigés, et la version de SDK minimale. Sans eux
+      // dans la sortie, le runtime ne peut ni refuser proprement une mini-app
+      // dont l'hôte n'a pas branché la lib, ni lui accorder le pack déclaré :
+      // les composants resteraient introuvables à l'exécution.
+      if (manifest['requires'] != null) 'requires': manifest['requires'],
+      if (manifest['minSdk'] != null) 'minSdk': manifest['minSdk'],
       // Passed through so a host without the real builder (e.g. the web preview)
       // can render a labeled placeholder instead of "Unknown widget".
       if (manifest['customWidgets'] != null)
@@ -281,7 +306,29 @@ class ManifestBundler {
       finalSource = _minify(finalSource);
     }
 
-    await bundler.validate(finalSource, customWidgets: _customWidgets);
+    // Les libs sont connues du binaire : utiliser un de leurs composants sans
+    // déclarer son pack est donc une erreur qu'on peut nommer ici. La
+    // validation ci-dessous n'exécute que le code de premier niveau et ne la
+    // verrait pas — elle passerait inaperçue jusqu'à un écran vide.
+    final undeclared = KnownLibs.undeclaredUsage(finalSource, _libPacks);
+    if (undeclared.isNotEmpty) {
+      throw BundlerException(KnownLibs.messageForUndeclaredUsage(undeclared));
+    }
+
+    try {
+      await bundler.validate(
+        finalSource,
+        customWidgets: _customWidgets,
+        modulePrelude: KnownLibs.moduleStubFor(_libPacks),
+      );
+    } on BundlerException catch (e) {
+      // La faute la plus probable : un composant de lib utilisé sans avoir
+      // déclaré son pack. Le moteur ne dit alors qu'« undefined variable » —
+      // on nomme le pack et la clé à corriger.
+      final hint = KnownLibs.hintForUndeclared(e.message, _libPacks);
+      if (hint == null) rethrow;
+      throw BundlerException('${e.message}\n\n$hint');
+    }
 
     return finalSource;
   }

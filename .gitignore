@@ -5,3 +5,4 @@ krom
 # Build outputs (CLI compile + sample-project packages)
 build/
 dist/
+testing/

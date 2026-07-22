@@ -1,3 +1,14 @@
+## 0.3.1
+
+### Descripteurs et preview à jour
+
+- **Descripteurs embarqués régénérés** : le pack `forms` passe à **1.2.0** —
+  `pickContact` et `PhoneField({ pickContact })` sont désormais connus de
+  `krom build` et `krom dev` (validation, autocomplétion via l'outillage).
+- **Preview réembarquée sur kmini_program 1.1.2** : le rendu de `krom dev`
+  reflète les derniers widgets du core — `Padding`, prefix/suffix cliquables du
+  `TextField` (`onPrefixTap`/`onSuffixTap`), et `Obx({ builder, args })`.
+
 ## 0.3.0
 
 ### Les libs de domaine deviennent natives pour l'outillage

@@ -25,5 +25,7 @@ let selectedOffer = null
 let marketCat = Obs("all")     // filtre catégorie
 let activated = Obs(false)     // offre courante activée
 
-fn noop() {}
+fn noop() {
+    ui.toast('Quick action !')
+}
 fn closeSheet() { ui.pop() }

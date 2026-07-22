@@ -2,6 +2,8 @@
 // Composants partagés entre écrans (coquilles, lignes, chips).
 // ============================================================
 @use "../ui.ks"
+@use "./detail_view.ks"
+@use "../state.ks"
 
 // Coquille d'un onglet : titre + liste de blocs, scrollable, padding bas
 // pour la barre flottante.

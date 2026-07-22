@@ -68,7 +68,7 @@ fn acct1() { let v = tick.value  return accountCard(ACCOUNTS[1]) }
 fn acct2() { let v = tick.value  return accountCard(ACCOUNTS[2]) }
 
 fn accountCard(a) {
-  return Box({ margin: { left: 6, right: 6 }, borderRadius: 22, padding: { left: 18, right: 18, top: 16, bottom: 16 } },
+  return Box({ margin: { left: 6, right: 6 }, borderRadius: 22, padding: { left: 18, right: 18, top: 16, bottom: 16 }, color: "#FFFFFF" },
     Column({ crossAxisAlignment: "center", mainAxisAlignment: "center", spacing: 4 }, [
         Text(a.label, { fontSize: 14, fontWeight: "600", color: T.muted }),
         Text(fmtMoney(a.balance, a.sym), { fontSize: 34, fontWeight: "bold", color: T.text })

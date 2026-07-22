@@ -4,15 +4,11 @@
 // découpé en composants importés via @use (utils/components/*).
 // ============================================================
 @use "../utils/ui.ks"
-@use "../utils/data.ks"
-@use "../utils/state.ks"
-@use "../utils/components/shared.ks"
 @use "../utils/components/home_view.ks"
 @use "../utils/components/move_view.ks"
 @use "../utils/components/cards_view.ks"
 @use "../utils/components/market_view.ks"
 @use "../utils/components/profile_view.ks"
-@use "../utils/components/detail_view.ks"
 
 fn build() {
   return Scaffold({ backgroundColor: T.bg },

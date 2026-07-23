@@ -1,3 +1,35 @@
+## 0.3.3
+
+### Le pack `sensors` connu de l'outillage, preview à jour
+
+- **Descripteur `sensors` embarqué** : `krom build` et `krom dev` connaissent
+  désormais le 4ᵉ pack de domaine — les modules `deviceState` (batterie, réseau),
+  `biometric` (empreinte/visage) et `location` (position, distance, géo-agents).
+  Appeler `location.current(...)` ou `deviceState.battery(...)` sans déclarer
+  `"requires": ["sensors"]` produit une erreur **nommée** au build, au lieu d'un
+  « undefined variable » à l'exécution. Les sous-permissions `sensors.location`
+  et `sensors.biometric` restent à déclarer dans `permissions`.
+- **Preview réembarquée** : le rendu de `krom dev` branche maintenant les
+  **quatre** libs (charts, media, forms, **sensors**) sur le core à jour
+  (kmini_program 1.1.4). Une mini-app qui déclare `sensors` s'ouvre donc dans la
+  préview web ; faute de matériel branché côté navigateur, les capteurs y
+  répondent « indisponible » — mais le gating et l'UI restent fidèles à ce que
+  rendra Krom Go ou une super-app qui a câblé les adapters natifs.
+
+## 0.3.2
+
+### Le preview ne vole plus le focus de l'éditeur
+
+- **Garde-focus injecté dans la page servie par `krom dev`** : le moteur
+  Flutter web appelle `focus()` au démarrage et à chaque hot reload — dans le
+  webview Device Preview de VSCode (ou un onglet en arrière-plan), chaque
+  sauvegarde arrachait donc le focus clavier à l'éditeur. Les `focus()`
+  programmatiques ne sont désormais honorés que si la page de preview est
+  réellement utilisée (page déjà focalisée, ou interaction pointeur/clavier
+  dans les 3 dernières secondes). Le focus natif — cliquer dans le preview —
+  n'est pas affecté, et un tap dans un champ du preview continue d'ouvrir le
+  clavier normalement.
+
 ## 0.3.1
 
 ### Descripteurs et preview à jour

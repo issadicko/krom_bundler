@@ -23,6 +23,12 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
     components: ['CurrencyField', 'Field', 'FieldError', 'FormBody', 'FormWizard', 'MaskedField', 'PhoneField', 'RatingField', 'SignaturePad', 'SubmitButton'],
     modules: {'forms': ['digits', 'email', 'group', 'luhn', 'maxLength', 'minLength', 'phone', 'pickContact', 'range', 'required', 'validate']},
   ),
+  'sensors': KromLibDescriptor(
+    pack: 'sensors',
+    version: '0.1.0',
+    components: [],
+    modules: {'deviceState': ['battery', 'network', 'stop', 'watchBattery', 'watchNetwork'], 'biometric': ['authenticate', 'available'], 'location': ['addGeofence', 'current', 'distance', 'permission', 'removeGeofence', 'stop', 'watch']},
+  ),
 };
 
 /// Ce qu'une lib de domaine expose au script d'une mini-app.

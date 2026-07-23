@@ -60,6 +60,46 @@ const String _swCleanupHeadScript = '''
 </script>
 ''';
 
+/// Focus guard injected into every served `index.html`.
+///
+/// The Flutter web engine calls `focus()` on its view (and on its hidden text
+/// input) at boot and again on every hot reload. Framed inside the VSCode
+/// device-preview webview — or sitting in a background browser tab — that
+/// yanks the keyboard focus away from the code editor on every save.
+///
+/// Programmatic focus is only honored while the user is actually using the
+/// preview: the page already holds focus, or a pointer/key interaction
+/// happened in the page within the last 3 seconds. Everything else is a
+/// silent no-op. Browser-native focus (the user clicking into the page) does
+/// not go through `HTMLElement.focus()` and is never affected.
+const String _focusGuardHeadScript = '''
+<script>
+(function () {
+  try {
+    var last = 0;
+    var mark = function () { last = Date.now(); };
+    window.addEventListener('pointerdown', mark, true);
+    window.addEventListener('touchstart', mark, true);
+    window.addEventListener('keydown', mark, true);
+    var allowed = function () {
+      return document.hasFocus() || (Date.now() - last) < 3000;
+    };
+    var elFocus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function () {
+      if (allowed()) { return elFocus.apply(this, arguments); }
+    };
+    var winFocus = window.focus;
+    window.focus = function () {
+      if (allowed()) { return winFocus.apply(window, arguments); }
+    };
+  } catch (e) {}
+})();
+</script>
+''';
+
+/// Everything the dev server injects into `<head>` of the served page.
+const String _devHeadScripts = _swCleanupHeadScript + _focusGuardHeadScript;
+
 /// Development server with hot reload support
 class DevServer {
   final ManifestBundler manifestBundler;
@@ -351,16 +391,18 @@ class DevServer {
     );
   }
 
-  /// Serve [bytes] as `index.html` with the page-side SW-cleanup script injected
-  /// right after `<head>`, so any stuck service worker is torn down on load.
+  /// Serve [bytes] as `index.html` with the dev page-side scripts injected
+  /// right after `<head>`: SW cleanup (tears down a stuck service worker) and
+  /// the focus guard (stops the Flutter engine from stealing keyboard focus
+  /// from the editor on boot/hot reload).
   Response _htmlWithSwCleanup(List<int> bytes) {
     final html = utf8.decode(bytes, allowMalformed: true);
     final head = RegExp(r'<head[^>]*>', caseSensitive: false).firstMatch(html);
     final injected = head != null
         ? html.substring(0, head.end) +
-            _swCleanupHeadScript +
+            _devHeadScripts +
             html.substring(head.end)
-        : _swCleanupHeadScript + html;
+        : _devHeadScripts + html;
     return Response.ok(injected, headers: {'Content-Type': 'text/html'});
   }
 

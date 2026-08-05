@@ -5,6 +5,12 @@
 /// Les composants et modules de chaque lib de domaine embarquée,
 /// indexés par pack de capacité.
 const Map<String, KromLibDescriptor> kKromLibDescriptors = {
+  'arcade': KromLibDescriptor(
+    pack: 'arcade',
+    version: '0.1.0',
+    components: ['MysteryBox', 'ScratchCard', 'SpinWheel'],
+    modules: {'play': ['confetti', 'haptic', 'shuffle', 'weightedPick']},
+  ),
   'charts': KromLibDescriptor(
     pack: 'charts',
     version: '1.0.0',
@@ -28,6 +34,12 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
     version: '0.1.0',
     components: [],
     modules: {'deviceState': ['battery', 'network', 'stop', 'watchBattery', 'watchNetwork'], 'biometric': ['authenticate', 'available'], 'location': ['addGeofence', 'current', 'distance', 'permission', 'removeGeofence', 'stop', 'watch']},
+  ),
+  'nenga_form': KromLibDescriptor(
+    pack: 'nenga_form',
+    version: '0.1.0',
+    components: ['NengaForm'],
+    modules: {},
   ),
 };
 

@@ -20,10 +20,12 @@ import 'package:path/path.dart' as p;
 
 /// The libs bundled with the CLI, in the order they appear in the generated map.
 const _libDirs = [
+  'krom_lib_arcade',
   'krom_lib_charts',
   'krom_lib_media',
   'krom_lib_forms',
   'krom_lib_sensors',
+  'krom_lib_nenga_form',
 ];
 
 void main(List<String> args) {

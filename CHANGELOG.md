@@ -1,3 +1,19 @@
+## 0.3.4
+
+### Les packs `arcade` et `nenga_form` connus de l'outillage, préview à jour
+
+- **Descripteurs `arcade` et `nenga_form` embarqués** : `krom build` et
+  `krom dev` connaissent désormais deux packs de plus — `arcade` (gamification :
+  `SpinWheel`, `ScratchCard`, `MysteryBox` + module `play`) et `nenga_form`
+  (`NengaForm`, formulaire dynamique rendu depuis une définition à spec
+  distante). Utiliser l'un de leurs composants sans déclarer le `requires`
+  correspondant produit une erreur **nommée** au build, au lieu d'un « undefined
+  variable » à l'exécution. Le catalogue outillé passe à **6 packs** (charts,
+  media, forms, sensors, arcade, nenga_form).
+- **Préview réembarquée** : `krom dev` rend maintenant réellement les composants
+  `arcade` et `nenga_form`, et embarque le SDK 1.2.0 — donc le décorateur
+  universel `mod` sur tout widget.
+
 ## 0.3.3
 
 ### Le pack `sensors` connu de l'outillage, preview à jour

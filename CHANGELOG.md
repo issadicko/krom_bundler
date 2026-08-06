@@ -1,3 +1,16 @@
+## 0.3.5
+
+### `krom dev --remote` — tester en direct sur appareil ou émulateur
+
+- **Nouveau flag `krom dev --remote`** : ouvre un *canal de dev* éphémère sur le
+  backend, affiche un code court à saisir dans l'app hôte (pas de scan → marche
+  sur émulateur), puis pousse le manifeste rebundlé à chaque sauvegarde. La
+  mini-app se recharge à chaud dans la vraie super-app, sans publication ni
+  nouvelle version. Erreur de build poussée en overlay sur l'appareil ; canal
+  expiré → message clair.
+- **`BackendClient`** gagne `openDevChannel` / `pushDevBundle` / `pushDevError`
+  et le modèle `DevChannel`.
+
 ## 0.3.4
 
 ### Les packs `arcade` et `nenga_form` connus de l'outillage, préview à jour

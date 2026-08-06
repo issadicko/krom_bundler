@@ -45,6 +45,23 @@ class DeployedVersion {
   final String? status;
 }
 
+/// A dev channel opened for live on-device testing: [code] is the short handle
+/// the developer types into the host app (or embeds in a `krom://dev` QR),
+/// [displayCode] its dashed human form.
+class DevChannel {
+  const DevChannel({
+    required this.code,
+    required this.displayCode,
+    required this.pollUrl,
+    this.expiresAt,
+  });
+
+  final String code;
+  final String displayCode;
+  final String pollUrl;
+  final String? expiresAt;
+}
+
 /// Raised on any non-success backend response.
 class BackendException implements Exception {
   BackendException(this.message, {this.statusCode, this.body});
@@ -249,6 +266,65 @@ class BackendClient {
     );
     if (resp.statusCode != 200 && resp.statusCode != 201) {
       throw BackendException('Binding failed',
+          statusCode: resp.statusCode, body: resp.body);
+    }
+  }
+
+  /// Opens an ephemeral dev channel for [appId] — the "test live on a device
+  /// without publishing" slot. The returned [DevChannel.code] is what the host
+  /// app (real phone OR emulator) uses to subscribe; nothing is versioned.
+  Future<DevChannel> openDevChannel(String appId) async {
+    final resp = await _http.post(
+      Uri.parse('$baseUrl/api/v1/dev-channels'),
+      headers: {..._authHeaders, 'Content-Type': 'application/json'},
+      body: jsonEncode({'appId': appId}),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw BackendException('Opening dev channel failed',
+          statusCode: resp.statusCode, body: resp.body);
+    }
+    final m = jsonDecode(resp.body) as Map<String, dynamic>;
+    final code = m['code'].toString();
+    return DevChannel(
+      code: code,
+      displayCode: (m['displayCode'] ?? code).toString(),
+      pollUrl: (m['pollUrl'] ?? '/api/v1/dist/dev/$code').toString(),
+      expiresAt: m['expiresAt']?.toString(),
+    );
+  }
+
+  /// Overwrites the channel's bundle with a freshly bundled manifest — the body
+  /// is the compiled `dist/manifest.json` (pages carry inline `script`). Returns
+  /// the new channel version the device diffs against.
+  Future<int> pushDevBundle({
+    required String code,
+    required Map<String, dynamic> manifest,
+  }) async {
+    final resp = await _http.put(
+      Uri.parse('$baseUrl/api/v1/dev-channels/$code/bundle'),
+      headers: {..._authHeaders, 'Content-Type': 'application/json'},
+      body: jsonEncode(manifest),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw BackendException('Pushing dev bundle failed',
+          statusCode: resp.statusCode, body: resp.body);
+    }
+    final m = jsonDecode(resp.body) as Map<String, dynamic>;
+    return (m['version'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Pushes a build error the device shows as an overlay until the next bundle.
+  Future<void> pushDevError({
+    required String code,
+    required String message,
+  }) async {
+    final resp = await _http.put(
+      Uri.parse('$baseUrl/api/v1/dev-channels/$code/error'),
+      headers: {..._authHeaders, 'Content-Type': 'application/json'},
+      body: jsonEncode({'message': message}),
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw BackendException('Pushing dev error failed',
           statusCode: resp.statusCode, body: resp.body);
     }
   }

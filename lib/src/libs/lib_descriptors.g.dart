@@ -37,7 +37,7 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'nenga_form': KromLibDescriptor(
     pack: 'nenga_form',
-    version: '0.6.1',
+    version: '0.6.2',
     components: ['NengaForm'],
     modules: {'nenga': ['discardDraft', 'fillPlaceholder', 'latestDraft', 'loadForm', 'newDraft', 'openRequest', 'submit']},
   ),

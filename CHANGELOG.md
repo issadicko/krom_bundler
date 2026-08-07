@@ -1,3 +1,17 @@
+## 0.3.8
+
+### Préview embarquée — les enfants dans les props
+
+- La préview web embarquée est reconstruite sur **kmini_program 1.5.0**, où les
+  enfants d'un composant passent par `child:` / `children:` dans les props.
+  L'ancienne préview datait d'avant : elle exécutait le prélude précédent, qui
+  ignore ces clés — un `Column({ children: [...] })` s'y affichait **vide, sans
+  message d'erreur**. C'est le seul changement fonctionnel de cette version ; le
+  CLI lui-même est inchangé.
+
+- La forme héritée (les enfants en 2ᵉ argument positionnel) rend toujours à
+  l'identique : le prélude 1.5.0 l'accepte sans date de fin.
+
 ## 0.3.7
 
 ### Descripteurs embarqués — `nenga_form` 0.6.1

@@ -8,3 +8,7 @@ dist/
 testing/
 test_project/
 .idea
+# Build web de la préview servi en priorité sur la version embarquée dans le
+# binaire (voir dev_server). Doublon de lib/src/preview/preview_assets.g.dart :
+# régénéré par `make embed-preview` depuis krom_bundler_web, jamais versionné.
+web_build/

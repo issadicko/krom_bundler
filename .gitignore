@@ -7,3 +7,4 @@ build/
 dist/
 testing/
 test_project/
+.idea

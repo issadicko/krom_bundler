@@ -94,10 +94,33 @@ fi
 
 ok "krom installé dans ${dir}"
 
-# --- PATH hint ---------------------------------------------------------------
-case ":${PATH}:" in
-  *":${dir}:"*) ;;
-  *) say "⚠ ${dir} n'est pas dans ton PATH. Ajoute :  export PATH=\"${dir}:\$PATH\"" ;;
-esac
-
 "${dir}/${BIN}" --version 2>/dev/null || true
+
+# --- PATH hint (shell-aware) -------------------------------------------------
+# Le binaire est installé, mais encore faut-il que ${dir} soit dans le PATH du
+# shell de l'utilisateur. On adapte la commande au shell — surtout fish, qui
+# n'a pas `export` et gère son PATH à part (une session fraîche peut manquer
+# ${dir} même si ce processus sh l'a hérité).
+shell_name="$(basename "${SHELL:-sh}")"
+
+on_path=0
+case ":${PATH}:" in *":${dir}:"*) on_path=1 ;; esac
+if [ "$shell_name" = "fish" ] && command -v fish >/dev/null 2>&1; then
+  if fish -c "contains -- '${dir}' \$PATH" >/dev/null 2>&1; then
+    on_path=1
+  else
+    on_path=0
+  fi
+fi
+
+if [ "$on_path" -eq 0 ]; then
+  say ""
+  say "⚠ ${dir} n'est pas dans le PATH de ton shell (${shell_name})."
+  case "$shell_name" in
+    fish) say "  Ajoute-le (persistant) :  fish_add_path ${dir}" ;;
+    zsh)  say "  Ajoute à ~/.zshrc :  export PATH=\"${dir}:\$PATH\"" ;;
+    bash) say "  Ajoute à ~/.bashrc :  export PATH=\"${dir}:\$PATH\"" ;;
+    *)    say "  Ajoute à la config de ton shell :  export PATH=\"${dir}:\$PATH\"" ;;
+  esac
+  say "  Puis rouvre un terminal."
+fi

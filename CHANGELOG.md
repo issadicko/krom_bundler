@@ -1,3 +1,13 @@
+## 0.3.7
+
+### Descripteurs embarqués — `nenga_form` 0.6.1
+
+- Le bundler connaît désormais les opérations de **reprise de brouillon** du pack
+  `nenga_form` : `nenga.newDraft(formKey)`, `nenga.latestDraft`,
+  `nenga.discardDraft` et `nenga.submit` sont validées au build au lieu de
+  produire un « méthode inconnue ». Régénéré depuis `krom_lib_nenga_form` 0.6.1
+  via `dart run tool/embed_lib_descriptors.dart`.
+
 ## 0.3.5
 
 ### `krom dev --remote` — tester en direct sur appareil ou émulateur

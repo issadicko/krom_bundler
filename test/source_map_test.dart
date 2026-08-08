@@ -147,6 +147,22 @@ void main() {
       );
     });
 
+    // Depuis krom_script 1.0.3, une erreur d'exécution porte sa position : la
+    // validation du premier niveau est donc située elle aussi, et pas
+    // seulement la syntaxe.
+    test('une erreur de validation est située dans le fichier', () async {
+      final dir = _project(
+          home: '${_imports}let couleur = paletteInexistante\n\n'
+              'fn build() {\n  return Btn("ok")\n}\n');
+      addTearDown(() => dir.deleteSync(recursive: true));
+
+      await expectLater(
+        ManifestBundler().bundleProjectToMap(p.join(dir.path, 'manifest.json')),
+        throwsA(isA<BundlerException>().having((e) => e.message, 'message',
+            contains('undefined variable: paletteInexistante at pages/home.ks:4'))),
+      );
+    });
+
     // `krom dev` n'optimise pas : la faute de syntaxe ressort alors de la
     // validation, et non de l'étape d'optimisation. Elle doit être située de
     // la même façon — c'est le chemin que le développeur emprunte le plus.

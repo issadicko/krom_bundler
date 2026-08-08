@@ -1,3 +1,15 @@
+## 0.3.12
+
+- Préview embarquée reconstruite sur **kmini_program 1.5.4** / **krom_script
+  1.0.3**. Une erreur d'exécution y affiche désormais `at pages/home.ks:2` au
+  lieu d'un message sans position — dernier maillon de la chaîne ouverte en
+  0.3.9 côté build.
+
+- La CLI elle-même passe à **krom_script 1.0.3**. Bénéfice direct : une erreur
+  de **validation** (le code de premier niveau, exécuté au build) porte enfin
+  sa position, et la table la situe — `undefined variable: paletteInexistante
+  at pages/home.ks:3` au lieu d'un message muet.
+
 ## 0.3.11
 
 ### La table voyage jusqu'au device

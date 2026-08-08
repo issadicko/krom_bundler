@@ -1,3 +1,27 @@
+## 0.3.9
+
+### Les erreurs pointent la ligne du fichier, pas celle du bundle
+
+- Le bundle est une concaténation : les `@use` (résolus transitivement) puis la
+  page, chacun précédé d'une ligne d'en-tête. Le moteur numérotait donc **le
+  bundle**, et une virgule oubliée à la ligne 180 de `pages/home.ks` était
+  annoncée « at line 207 » — 27 lignes plus bas, sans rien pour faire le
+  rapprochement. Une seule faute pouvant partir en trente messages en cascade,
+  il fallait deviner lequel comptait *et* où il pointait vraiment.
+
+  Le bundler tient maintenant une table `ligne du bundle → fichier:ligne`, et
+  les erreurs sortent en `at pages/home.ks:180:31` — cliquable depuis le
+  terminal comme depuis VSCode. Vaut pour `krom build`, `krom dev`, et les
+  erreurs de rebuild poussées à la préview et aux devices connectés.
+
+- Les directives `@use` sont **blanchies plutôt que supprimées**. Elles
+  laissaient un trou : tout ce qui suivait un import était déjà décalé avant
+  même la concaténation.
+
+- Une position qu'aucune table ne situe garde son numéro brut. C'est le cas
+  après optimisation ou minification (`krom build`), où le texte est réécrit :
+  mieux vaut un numéro de bundle honnête qu'un numéro de fichier faux.
+
 ## 0.3.8
 
 ### Préview embarquée — les enfants dans les props

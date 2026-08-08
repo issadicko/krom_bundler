@@ -5,6 +5,7 @@ import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
 import '../utils/logger.dart';
 import 'minifier.dart';
+import 'source_map.dart';
 
 /// Bundler - bundles KromLang scripts with @use imports
 class Bundler {
@@ -13,16 +14,42 @@ class Bundler {
   final Set<String> _processed = {};
   final Set<String> _inProgress = {}; // For circular detection
   final StringBuffer _output = StringBuffer();
+  final List<BundleSegment> _segments = [];
 
-  Bundler({this.enableOptimizer = false, this.minify = false});
+  /// Prochaine ligne à écrire dans [_output], 1-indexée.
+  int _line = 1;
+
+  /// Où retombe chaque ligne du dernier [bundle] dans les fichiers du projet.
+  ///
+  /// Ne vaut que pour la concaténation brute : optimisation et minification
+  /// réécrivent le texte et rendent la table caduque.
+  BundleSourceMap? _sourceMap;
+  BundleSourceMap? get sourceMap => _sourceMap;
+
+  /// Racine du projet, pour que [sourceMap] affiche `pages/home.ks` plutôt
+  /// qu'un chemin absolu. `null` : le dossier du fichier d'entrée.
+  final String? projectRoot;
+
+  Bundler({
+    this.enableOptimizer = false,
+    this.minify = false,
+    this.projectRoot,
+  });
 
   /// Bundle the entry file and all its dependencies
   Future<String> bundle(String entryPath) async {
     _processed.clear();
     _inProgress.clear();
     _output.clear();
+    _segments.clear();
+    _line = 1;
 
     await _processFile(entryPath, [entryPath]);
+
+    _sourceMap = BundleSourceMap(
+      List.unmodifiable(_segments),
+      root: projectRoot ?? p.dirname(p.absolute(entryPath)),
+    );
 
     var result = _output.toString();
 
@@ -76,8 +103,19 @@ class Bundler {
     final cleanedSource = _removeImports(source);
 
     _output.writeln('// === ${p.basename(absolutePath)} ===');
+    _line++;
+
+    final lineCount = countLines(cleanedSource);
+    _segments.add(BundleSegment(
+      path: absolutePath,
+      bundleStart: _line,
+      lineCount: lineCount,
+    ));
     _output.writeln(cleanedSource);
+    _line += lineCount;
+
     _output.writeln();
+    _line++;
 
     _inProgress.remove(absolutePath);
     _processed.add(absolutePath);
@@ -108,9 +146,13 @@ class Bundler {
     return p.normalize(p.join(baseDir, resolved));
   }
 
-  /// Remove @use statements from source
+  /// Remove @use statements from source, **keeping the line**.
+  ///
+  /// The directive is blanked rather than deleted so a file's own line numbers
+  /// survive into the bundle: without that, everything below an import would
+  /// already be off by one before the concatenation even starts.
   String _removeImports(String source) {
-    return source.replaceAll(RegExp(r'@use\s+"[^"]+"\s*\n?'), '');
+    return source.replaceAll(RegExp(r'@use\s+"[^"]+"[^\S\n]*'), '');
   }
 
   /// Apply code optimizations
@@ -122,8 +164,10 @@ class Bundler {
       final program = parser.parseProgram();
 
       if (parser.errors().isNotEmpty) {
-        throw BundlerException(
-            'Syntax Error(s) detected:\n${parser.errors().join('\n')}');
+        throw BundlerException(remapBundleErrors(
+          'Syntax Error(s) detected:\n${parser.errors().join('\n')}',
+          _sourceMap,
+        ));
       }
 
       final optimizer = Optimizer(
@@ -183,10 +227,14 @@ class Bundler {
   /// `media`, …) so a top-level call to one of them validates too. At runtime
   /// the bindings are injected *before* the script loads, so such a call has
   /// always been legal — only the bundler could not see it.
+  /// [sourceMap] situe les erreurs dans les fichiers du projet. Ne la passer
+  /// que si [bundledSource] est bien la concaténation brute : optimisation et
+  /// minification réécrivent le texte, et la table ne vaut plus rien.
   Future<void> validate(
     String bundledSource, {
     List<String> customWidgets = const [],
     String modulePrelude = '',
+    BundleSourceMap? sourceMap,
   }) async {
     final engine = KSEngine();
     // Stub host-injected globals so top-level code that reads them (the
@@ -207,11 +255,27 @@ class Bundler {
     final result = await engine.load(source, enableOptimizer: false);
     if (!result.success) {
       Logger.debug('Validation errors: ${result.errors}');
-      throw BundlerException(
-          'Validation failed:\n  ${result.errors.join('\n  ')}');
+      throw BundlerException(remapBundleErrors(
+        'Validation failed:\n  ${result.errors.join('\n  ')}',
+        sourceMap,
+        // Les stubs sont écrits devant le bundle : le moteur compte à partir
+        // d'eux, pas du premier fichier du projet.
+        preludeLines: stub.isEmpty ? 0 : countLines(stub),
+      ));
     }
   }
 }
+
+/// [message] avec ses positions ramenées aux fichiers du projet, ou tel quel
+/// quand aucune table ne s'applique — après optimisation, par exemple.
+String remapBundleErrors(
+  String message,
+  BundleSourceMap? sourceMap, {
+  int preludeLines = 0,
+}) =>
+    sourceMap == null
+        ? message
+        : sourceMap.remap(message, preludeLines: preludeLines);
 
 /// Exception thrown by bundler
 class BundlerException implements Exception {

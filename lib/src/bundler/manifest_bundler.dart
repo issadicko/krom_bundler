@@ -9,6 +9,7 @@ import '../utils/logger.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
 import 'minifier.dart';
+import 'source_map.dart';
 
 /// Manifest-based bundler for mini-app projects.
 ///
@@ -34,8 +35,16 @@ class ManifestBundler {
   /// undeclared-pack mistake be reported by name.
   List<String> _libPacks = const [];
 
+  /// Dossier du manifeste : la racine à laquelle rapporter les chemins des
+  /// erreurs, pour qu'elles se lisent `pages/home.ks:180` depuis le projet.
+  String? _projectRoot;
+
   /// Create a fresh Bundler to avoid _processed state leaking between bundles.
-  Bundler _freshBundler() => Bundler(enableOptimizer: false, minify: false);
+  Bundler _freshBundler() => Bundler(
+        enableOptimizer: false,
+        minify: false,
+        projectRoot: _projectRoot,
+      );
 
   /// Bundle a mini-app project from its manifest.
   ///
@@ -62,6 +71,7 @@ class ManifestBundler {
     }
 
     final manifestDir = p.dirname(p.absolute(manifestPath));
+    _projectRoot = manifestDir;
     final manifestContent = await manifestFile.readAsString();
     final manifest = jsonDecode(manifestContent) as Map<String, dynamic>;
 
@@ -298,12 +308,20 @@ class ManifestBundler {
     final bundler = _freshBundler();
     var finalSource = await bundler.bundle(filePath);
 
+    // La table ne vaut que pour la concaténation brute : dès qu'on optimise ou
+    // qu'on minifie, le texte est réécrit et les lignes ne veulent plus rien
+    // dire. On la garde donc pour l'étape de syntaxe, on la lâche ensuite.
+    final sourceMap = bundler.sourceMap;
+    var mappable = true;
+
     if (enableOptimizer) {
-      finalSource = _optimize(finalSource);
+      finalSource = _optimize(finalSource, sourceMap);
+      mappable = false;
     }
 
     if (minify) {
       finalSource = _minify(finalSource);
+      mappable = false;
     }
 
     // Les libs sont connues du binaire : utiliser un de leurs composants sans
@@ -320,6 +338,7 @@ class ManifestBundler {
         finalSource,
         customWidgets: _customWidgets,
         modulePrelude: KnownLibs.moduleStubFor(_libPacks),
+        sourceMap: mappable ? sourceMap : null,
       );
     } on BundlerException catch (e) {
       // La faute la plus probable : un composant de lib utilisé sans avoir
@@ -334,15 +353,20 @@ class ManifestBundler {
   }
 
   /// Apply code optimizations
-  String _optimize(String source) {
+  ///
+  /// [sourceMap] situe les erreurs de syntaxe dans les fichiers du projet :
+  /// elle vaut pour [source], qui est encore la concaténation brute.
+  String _optimize(String source, [BundleSourceMap? sourceMap]) {
     try {
       final lexer = Lexer(source);
       final parser = Parser(lexer);
       final program = parser.parseProgram();
 
       if (parser.errors().isNotEmpty) {
-        throw BundlerException(
-            'Syntax Error(s) detected:\n${parser.errors().join('\n')}');
+        throw BundlerException(remapBundleErrors(
+          'Syntax Error(s) detected:\n${parser.errors().join('\n')}',
+          sourceMap,
+        ));
       }
 
       final optimizer = Optimizer(

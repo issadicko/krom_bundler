@@ -87,3 +87,21 @@ class BundleSourceMap {
 
 /// Le nombre de lignes qu'occupe [source] une fois écrit suivi d'un saut.
 int countLines(String source) => '\n'.allMatches(source).length + 1;
+
+extension BundleSourceMapJson on BundleSourceMap {
+  /// La table sous la forme embarquée dans un manifeste de développement, que
+  /// le SDK relit pour situer ses erreurs d'exécution.
+  ///
+  /// Clés courtes — `f`ichier, ligne de `d`épart, `n`ombre de lignes — parce
+  /// qu'elle voyage dans le manifeste à chaque rebuild.
+  List<Map<String, Object>> toJson() => [
+        for (final segment in segments)
+          {
+            'f': root == null
+                ? segment.path
+                : p.relative(segment.path, from: root!),
+            'd': segment.bundleStart,
+            'n': segment.lineCount,
+          }
+      ];
+}

@@ -85,7 +85,7 @@ class DevCommand extends Command<int> {
     }
 
     try {
-      final bundler = ManifestBundler();
+      final bundler = ManifestBundler(emitSourceMap: true);
       final server = DevServer(
         manifestBundler: bundler,
         manifestPath: manifestPath,
@@ -181,7 +181,7 @@ class DevCommand extends Command<int> {
     }
 
     final client = BackendClient(baseUrl: remoteUrl, token: token);
-    final bundler = ManifestBundler();
+    final bundler = ManifestBundler(emitSourceMap: true);
     StreamSubscription<WatchEvent>? sub;
     try {
       Logger.step(1, 2, 'Resolving app "${manifest.slug}"...');

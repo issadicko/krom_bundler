@@ -1,3 +1,19 @@
+## 0.3.11
+
+### La table voyage jusqu'au device
+
+- `krom dev` écrit dans chaque page du manifeste la table
+  `ligne du bundle → fichier:ligne` (clés `f`/`d`/`n`). Le SDK la relit et
+  situe ses erreurs **d'exécution** : `at pages/home.ks:180:31` dans la
+  préview web comme sur un device via le canal de dev. Jusqu'ici seules les
+  erreurs de build étaient situées.
+
+- Réservé au développement. `krom build` et `krom publish` n'en émettent pas :
+  leur sortie est optimisée — le texte est réécrit, la table n'y
+  correspondrait plus.
+
+- Préview embarquée reconstruite sur **kmini_program 1.5.3**.
+
 ## 0.3.10
 
 - Préview embarquée reconstruite sur **kmini_program 1.5.2**, qui décompte

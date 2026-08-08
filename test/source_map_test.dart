@@ -166,5 +166,38 @@ void main() {
             contains('at pages/home.ks:6:'))),
       );
     });
+    });
+
+  group('table embarquée dans le manifeste', () {
+    test('krom dev écrit la table dans chaque page', () async {
+      final dir = _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
+      addTearDown(() => dir.deleteSync(recursive: true));
+
+      final manifest = await ManifestBundler(emitSourceMap: true)
+          .bundleProjectToMap(p.join(dir.path, 'manifest.json'));
+      final page = (manifest['pages'] as Map)['home'] as Map;
+      final map = (page['sourceMap'] as List).cast<Map>();
+
+      expect(map.map((s) => s['f']),
+          containsAll(['utils/ui.ks', 'components/btn.ks', 'pages/home.ks']));
+
+      // La table doit retomber sur le script effectivement publié.
+      final lines = (page['script'] as String).split('\n');
+      final home = map.firstWhere((s) => s['f'] == 'pages/home.ks');
+      final source = File(p.join(dir.path, 'pages', 'home.ks')).readAsLinesSync();
+      expect(lines[(home['d'] as int) + 2], source[3]); // 1re ligne après les @use
+    });
+
+    test("un bundle publié n'embarque pas de table", () async {
+      final dir = _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
+      addTearDown(() => dir.deleteSync(recursive: true));
+
+      // Le texte est réécrit par l'optimiseur : une table y serait fausse.
+      final manifest = await ManifestBundler(enableOptimizer: true)
+          .bundleProjectToMap(p.join(dir.path, 'manifest.json'));
+      final page = (manifest['pages'] as Map)['home'] as Map;
+
+      expect(page.containsKey('sourceMap'), isFalse);
+    });
   });
 }

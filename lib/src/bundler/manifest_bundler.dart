@@ -19,9 +19,19 @@ class ManifestBundler {
   final bool enableOptimizer;
   final bool minify;
 
+  /// Embarque dans chaque page la table `ligne du bundle → fichier:ligne`,
+  /// pour que le SDK situe ses erreurs d'exécution dans les fichiers du
+  /// projet.
+  ///
+  /// Réservé au **développement**. Un bundle publié est optimisé — le texte
+  /// est réécrit, la table ne correspondrait plus à rien — et n'a de toute
+  /// façon rien à faire des chemins de la machine qui l'a construit.
+  final bool emitSourceMap;
+
   ManifestBundler({
     this.enableOptimizer = false,
     this.minify = false,
+    this.emitSourceMap = false,
   });
 
   /// Host custom-widget names declared by the current project's manifest, plus
@@ -139,12 +149,13 @@ class ManifestBundler {
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript = await _bundlePage(fullPath);
+      final bundled = await _bundlePage(fullPath);
 
       final compiledPage = <String, dynamic>{
         'name': pageConfig['name'] ?? pageId,
         if (pageConfig['icon'] != null) 'icon': pageConfig['icon'],
-        'script': bundledScript,
+        'script': bundled.script,
+        if (bundled.sourceMap != null) 'sourceMap': bundled.sourceMap!.toJson(),
       };
 
       final root = pageToSubpackage[pageId];
@@ -171,11 +182,12 @@ class ManifestBundler {
       }
 
       final fullPath = p.join(manifestDir, sourcePath);
-      final bundledScript = await _bundlePage(fullPath);
+      final bundled = await _bundlePage(fullPath);
 
       componentsOutput[componentId] = {
         'name': componentConfig['name'] ?? componentId,
-        'script': bundledScript,
+        'script': bundled.script,
+        if (bundled.sourceMap != null) 'sourceMap': bundled.sourceMap!.toJson(),
       };
     }
 
@@ -302,7 +314,7 @@ class ManifestBundler {
   /// `@use`s (resolved transitively, de-duplicated, with circular-import
   /// detection by [Bundler]). Optimisation/minification run once on the
   /// resolved unit.
-  Future<String> _bundlePage(String filePath) async {
+  Future<_BundledUnit> _bundlePage(String filePath) async {
     // The inner bundler only resolves @use imports and strips the directives;
     // it does no optimisation itself, so we optimise/minify here exactly once.
     final bundler = _freshBundler();
@@ -349,7 +361,10 @@ class ManifestBundler {
       throw BundlerException('${e.message}\n\n$hint');
     }
 
-    return finalSource;
+    return _BundledUnit(
+      finalSource,
+      emitSourceMap && mappable ? sourceMap : null,
+    );
   }
 
   /// Apply code optimizations
@@ -385,4 +400,13 @@ class ManifestBundler {
 
   /// Minify the combined source — string-literal-aware (see [minifyKromSource]).
   String _minify(String source) => minifyKromSource(source);
+}
+
+/// Une page ou un composant bundlé, et — en développement seulement — de quoi
+/// resituer ses lignes dans les fichiers du projet.
+class _BundledUnit {
+  _BundledUnit(this.script, this.sourceMap);
+
+  final String script;
+  final BundleSourceMap? sourceMap;
 }

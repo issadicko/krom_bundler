@@ -1,3 +1,9 @@
+## 0.3.10
+
+- Préview embarquée reconstruite sur **kmini_program 1.5.2**, qui décompte
+  aussi le prélude injecté par l'hôte : les erreurs d'exécution affichées dans
+  la préview tombent sur les lignes du script de la mini-app.
+
 ## 0.3.9
 
 ### Les erreurs pointent la ligne du fichier, pas celle du bundle

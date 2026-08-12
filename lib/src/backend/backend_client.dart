@@ -63,6 +63,17 @@ class DevChannel {
 }
 
 /// Raised on any non-success backend response.
+/// Ce que le canal répond à un push : sa version, et ce qui lui manque encore.
+class DevPushResult {
+  final int version;
+
+  /// Chemins d'assets que le canal n'a pas au sha256 déclaré par le bundle.
+  /// Vide dès le deuxième push tant qu'aucun fichier n'a changé.
+  final List<String> missingAssets;
+
+  const DevPushResult({required this.version, this.missingAssets = const []});
+}
+
 class BackendException implements Exception {
   BackendException(this.message, {this.statusCode, this.body});
 
@@ -296,7 +307,7 @@ class BackendClient {
   /// Overwrites the channel's bundle with a freshly bundled manifest — the body
   /// is the compiled `dist/manifest.json` (pages carry inline `script`). Returns
   /// the new channel version the device diffs against.
-  Future<int> pushDevBundle({
+  Future<DevPushResult> pushDevBundle({
     required String code,
     required Map<String, dynamic> manifest,
   }) async {
@@ -310,7 +321,31 @@ class BackendClient {
           statusCode: resp.statusCode, body: resp.body);
     }
     final m = jsonDecode(resp.body) as Map<String, dynamic>;
-    return (m['version'] as num?)?.toInt() ?? 0;
+    return DevPushResult(
+      version: (m['version'] as num?)?.toInt() ?? 0,
+      missingAssets: ((m['missingAssets'] as List<dynamic>?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+    );
+  }
+
+  /// Uploads one asset of the current dev bundle. The channel refuses anything
+  /// the bundle does not declare, so this only ever carries project files.
+  Future<void> pushDevAsset({
+    required String code,
+    required String relPath,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    final resp = await _http.put(
+      Uri.parse('$baseUrl/api/v1/dev-channels/$code/assets/$relPath'),
+      headers: {..._authHeaders, 'Content-Type': contentType},
+      body: bytes,
+    );
+    if (resp.statusCode != 200 && resp.statusCode != 204) {
+      throw BackendException('Pushing dev asset "$relPath" failed',
+          statusCode: resp.statusCode, body: resp.body);
+    }
   }
 
   /// Pushes a build error the device shows as an overlay until the next bundle.

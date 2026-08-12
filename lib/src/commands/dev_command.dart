@@ -6,6 +6,7 @@ import 'package:watcher/watcher.dart';
 import '../backend/backend_client.dart';
 import '../backend/project_ref.dart';
 import '../server/dev_server.dart';
+import '../bundler/asset_packager.dart';
 import '../bundler/bundler.dart';
 import '../bundler/manifest_bundler.dart';
 import '../utils/config.dart';
@@ -199,8 +200,7 @@ class DevCommand extends Command<int> {
 
       final dir = p.dirname(p.absolute(manifestPath));
       sub = DirectoryWatcher(dir).events.listen((event) async {
-        if (event.path.endsWith('.ks') ||
-            event.path.endsWith('manifest.json')) {
+        if (_watched(dir, event.path)) {
           Logger.fileChanged(p.basename(event.path));
           await _bundleAndPush(bundler, client, manifestPath, channel.code);
         }
@@ -235,9 +235,24 @@ class DevCommand extends Command<int> {
     final timer = Logger.startTimer();
     try {
       final compiled = await bundler.bundleProjectToMap(manifestPath);
-      final version = await client.pushDevBundle(code: code, manifest: compiled);
+
+      // Le canal n'a pas de paquet signé pour porter les images : il faut les
+      // lui envoyer. La carte d'intégrité voyage avec le bundle, et c'est elle
+      // qui lui permet de ne réclamer que ce qui a changé.
+      final projectDir = p.dirname(p.absolute(manifestPath));
+      final assets = await AssetPackager.collect(
+        compiledManifest: compiled,
+        projectDir: projectDir,
+      );
+      if (assets.isNotEmpty) {
+        compiled['assets'] = AssetPackager.integrityMap(assets);
+      }
+
+      final pushed = await client.pushDevBundle(code: code, manifest: compiled);
+      await _pushAssets(client, code, assets, pushed.missingAssets);
+
       timer.stop();
-      Logger.success('Pushed v$version '
+      Logger.success('Pushed v${pushed.version} '
           '(${Logger.formatDuration(timer.elapsed)}) — device reloading.');
       return true;
     } on BundlerException catch (e) {
@@ -256,6 +271,81 @@ class DevCommand extends Command<int> {
       }
       return false;
     }
+  }
+
+  /// Ce qui, en changeant, mérite un nouveau push : le code, le manifeste, et
+  /// les fichiers d'`assets/`. Retoucher un logo doit se voir sur l'appareil au
+  /// même titre qu'un `.ks` — c'est la moitié du sujet.
+  ///
+  /// La sortie du build est exclue : elle change à chaque push, et la surveiller
+  /// enclencherait une boucle.
+  bool _watched(String projectDir, String path) {
+    final rel = p.relative(path, from: projectDir).replaceAll('\\', '/');
+    if (rel.startsWith('dist/') || rel.startsWith('.')) return false;
+    if (rel.endsWith('.ks') || rel == 'manifest.json') return true;
+    return rel == 'assets' || rel.startsWith('assets/');
+  }
+
+  /// Uploads the assets the channel asked for, and only those.
+  ///
+  /// The first push carries the whole media; every later save carries nothing,
+  /// which is what keeps hot reload at the speed of the bundle. An upload that
+  /// fails is reported but does not break the session: the script is already
+  /// live, and the image comes back on the next save.
+  Future<void> _pushAssets(
+    BackendClient client,
+    String code,
+    List<PackagedAsset> assets,
+    List<String> missing,
+  ) async {
+    if (missing.isEmpty) return;
+
+    final byPath = {for (final a in assets) _channelPath(a.relPath): a};
+    var sent = 0;
+    var bytes = 0;  // octets réellement transmis
+    for (final path in missing) {
+      final asset = byPath[path];
+      if (asset == null) continue;
+      try {
+        await client.pushDevAsset(
+          code: code,
+          relPath: path,
+          bytes: asset.bytes,
+          contentType: _contentTypeFor(path),
+        );
+        sent++;
+        bytes += asset.size;
+      } on BackendException catch (e) {
+        Logger.warn('Asset "$path" not sent: ${e.message}');
+      }
+    }
+    if (sent > 0) {
+      Logger.info('$sent asset(s) sent (${(bytes / 1024).toStringAsFixed(1)} KB).');
+    }
+  }
+
+  /// The channel's key for a project-relative path: the leading `assets/` is
+  /// dropped, exactly as the backend and the SDK both normalise it.
+  String _channelPath(String relPath) {
+    final posix = relPath.replaceAll('\\', '/');
+    return posix.startsWith('assets/')
+        ? posix.substring('assets/'.length)
+        : posix;
+  }
+
+  String _contentTypeFor(String path) {
+    final ext = p.extension(path).toLowerCase();
+    return switch (ext) {
+      '.png' => 'image/png',
+      '.jpg' || '.jpeg' => 'image/jpeg',
+      '.gif' => 'image/gif',
+      '.webp' => 'image/webp',
+      '.svg' => 'image/svg+xml',
+      '.json' => 'application/json',
+      '.ttf' => 'font/ttf',
+      '.otf' => 'font/otf',
+      _ => 'application/octet-stream',
+    };
   }
 
   /// Prints the pairing code (primary — works on emulators) plus an optional

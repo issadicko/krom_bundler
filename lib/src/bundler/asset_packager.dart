@@ -97,10 +97,7 @@ class AssetPackager {
     final assets = await _collectAssets(compiledManifest, projectDir);
 
     // Build the integrity map keyed by project-relative POSIX path.
-    final integrity = <String, dynamic>{};
-    for (final a in assets) {
-      integrity[a.relPath] = {'sha256': a.sha256Hex, 'size': a.size};
-    }
+    final integrity = integrityMap(assets);
 
     // app.json = compiled manifest + assets integrity map. We copy so we never
     // mutate the caller's manifest, and only attach `assets` when non-empty to
@@ -140,6 +137,26 @@ class AssetPackager {
       appJson: appJson,
     );
   }
+
+  /// Every asset [compiledManifest] embeds, with its bytes and sha256 — the
+  /// collection step of [build], without the ZIP.
+  ///
+  /// The dev channel needs exactly this: it transports files one by one over
+  /// HTTP rather than in an archive, and rebuilding a ZIP on every keystroke
+  /// to read the same list would be waste.
+  static Future<List<PackagedAsset>> collect({
+    required Map<String, dynamic> compiledManifest,
+    required String projectDir,
+  }) =>
+      _collectAssets(compiledManifest, projectDir);
+
+  /// The integrity map for [assets], keyed by project-relative POSIX path —
+  /// the `assets` block of `app.json`, and what tells a dev channel which
+  /// files it already holds.
+  static Map<String, dynamic> integrityMap(Iterable<PackagedAsset> assets) => {
+        for (final a in assets)
+          a.relPath: {'sha256': a.sha256Hex, 'size': a.size},
+      };
 
   /// The canonical package file name for [appId] at [version]:
   /// `<appId>__<version>.zip`.

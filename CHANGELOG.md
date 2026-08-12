@@ -1,3 +1,22 @@
+## 0.3.17
+
+### `krom dev --remote` envoie les assets
+
+Le canal ne transportait que le script. Sur l'appareil, une image du projet
+s'affichait en carré gris — alors qu'elle marchait dans la préview web, où le
+serveur de dev sert déjà les fichiers du projet. L'écart ne se voyait qu'au
+moment de tester pour de vrai.
+
+Le push joint maintenant la carte d'intégrité des assets, le backend répond ce
+qui lui manque, et le CLI n'envoie que ça. Le premier push porte le média ;
+les suivants ne portent rien tant qu'aucun fichier n'a changé, donc le
+rechargement à chaud reste à la vitesse du bundle.
+
+Le watcher suit aussi `assets/` : retoucher un logo pousse la nouvelle image
+comme une sauvegarde de `.ks` pousse le nouveau code.
+
+Demande **kmini_program 1.6.7** côté hôte, et le backend qui sert la route.
+
 ## 0.3.16
 
 ### `@use "…" as ns` — les imports ont enfin une portée

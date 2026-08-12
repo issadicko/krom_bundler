@@ -157,10 +157,10 @@ packages:
     dependency: "direct main"
     description:
       name: krom_script
-      sha256: "110d586a501e505564c14694a765bf31be5c9c8968a6d123749d9cf830b3c391"
+      sha256: "91e845d9a2c0824c8128c34f3cba23a4d505dedaa1ba5903e0d1c54a150f82d9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.3"
+    version: "1.0.4"
   lints:
     dependency: "direct dev"
     description:

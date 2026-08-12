@@ -48,6 +48,18 @@ class KnownLibs {
     return out;
   }
 
+  /// Les noms de modules apportés par les packs [declared] — `charts`,
+  /// `media`… Un alias d'import ne peut pas les prendre : le module de l'auteur
+  /// gagnerait la recherche et le namespace de l'hôte disparaîtrait.
+  static List<String> moduleNamesFor(Iterable<String> declared) {
+    final out = <String>[];
+    for (final pack in declared) {
+      final descriptor = kKromLibDescriptors[pack];
+      if (descriptor != null) out.addAll(descriptor.modules.keys);
+    }
+    return out;
+  }
+
   /// Le stub KromScript des modules apportés par les packs [declared].
   ///
   /// Sans lui, un appel comme `charts.palette(5)` posé au niveau racine d'un

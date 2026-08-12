@@ -46,6 +46,13 @@ class BuildCommand extends Command<int> {
         defaultsTo: false,
       )
       ..addFlag(
+        'stats',
+        help: 'Report how much module duplication costs, once compressed. '
+            'Each page is a self-contained unit, so a module imported by three '
+            'pages ships three times.',
+        defaultsTo: false,
+      )
+      ..addFlag(
         'package',
         help: 'Also build the signed-ready ZIP package '
             '(dist/<appId>__<version>.zip) bundling app.json + assets with '
@@ -62,6 +69,7 @@ class BuildCommand extends Command<int> {
     final minify = argResults!['minify'] as bool;
     final splitSubpackages = argResults!['split-subpackages'] as bool;
     final buildPackage = argResults!['package'] as bool;
+    final showStats = argResults!['stats'] as bool;
     final timer = Logger.startTimer();
 
     // Validate manifest exists
@@ -136,6 +144,11 @@ class BuildCommand extends Command<int> {
 
       if (packagePath != null) {
         Logger.keyValue('  Package', packagePath);
+      }
+
+      if (showStats) {
+        Logger.newline();
+        stdout.write(bundler.stats.report());
       }
 
       Logger.success('Build complete!');

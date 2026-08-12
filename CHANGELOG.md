@@ -47,6 +47,33 @@ Demande **krom_script 1.0.4** : c'est lui qui résout les noms pointés à
 l'invocation, et qui garde un alias vivant à l'optimisation quand la seule
 référence est dans une chaîne.
 
+### `krom build --stats`
+
+Chaque page est une unité autonome — le runtime lui donne son propre moteur,
+sans rien partager — donc un module importé par trois pages part trois fois.
+Le drapeau dit ce que ça coûte vraiment :
+
+```
+  Duplication des modules
+  ───────────────────────
+    utils/ui.ks      3.6 KB  × 3  →   7.1 KB en trop
+    utils/data.ks    2.4 KB  × 2  →   2.4 KB en trop
+
+    Sortie         22.7 KB brut, 5.2 KB gzip
+    Transporté     6.8 KB gzip
+    Dédupliqué     6.7 KB gzip — 0.1 KB de gain, 2.2 %
+```
+
+Sur `spi`, le projet le plus partageur du corpus, dédupliquer économiserait
+**2,2 %**. Dans un flux compressé unique, les copies d'un module sont des
+références arrière : elles ne coûtent presque rien. Le rapport le dit, plutôt
+que de laisser croire à un gain.
+
+À quoi ça sert : décider d'un système de chunks partagés — qui coûterait un
+changement de format `dist` — sur des chiffres et non sur une intuition. Le
+rapport rappelle aussi que le gain ne porterait que sur le transport : un
+module partagé sera de toute façon réévalué à chaque ouverture de page.
+
 ## 0.3.15
 
 - Préview embarquée reconstruite sur **kmini_program 1.6.5** : `ListView` passe

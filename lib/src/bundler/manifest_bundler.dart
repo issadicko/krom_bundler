@@ -6,6 +6,7 @@ import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
 import '../libs/known_libs.dart';
 import '../utils/logger.dart';
+import 'bundle_stats.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
 import 'module_scope.dart';
@@ -50,6 +51,10 @@ class ManifestBundler {
   /// erreurs, pour qu'elles se lisent `pages/home.ks:180` depuis le projet.
   String? _projectRoot;
 
+  /// Ce que la duplication des modules a coûté au dernier build. Alimenté au
+  /// fil des pages ; lu par `krom build --stats`.
+  BundleStats stats = BundleStats();
+
   /// Create a fresh Bundler to avoid _processed state leaking between bundles.
   Bundler _freshBundler() => Bundler(
         enableOptimizer: false,
@@ -88,6 +93,7 @@ class ManifestBundler {
 
     final manifestDir = p.dirname(p.absolute(manifestPath));
     _projectRoot = manifestDir;
+    stats = BundleStats(projectRoot: manifestDir);
     final manifestContent = await manifestFile.readAsString();
     final manifest = jsonDecode(manifestContent) as Map<String, dynamic>;
 
@@ -325,6 +331,7 @@ class ManifestBundler {
     // it does no optimisation itself, so we optimise/minify here exactly once.
     final bundler = _freshBundler();
     var finalSource = await bundler.bundle(filePath);
+    final resolvedModules = bundler.modules;
 
     // La table ne vaut que pour la concaténation brute : dès qu'on optimise ou
     // qu'on minifie, le texte est réécrit et les lignes ne veulent plus rien
@@ -366,6 +373,8 @@ class ManifestBundler {
       if (hint == null) rethrow;
       throw BundlerException('${e.message}\n\n$hint');
     }
+
+    stats.record(filePath, resolvedModules, finalSource);
 
     return _BundledUnit(
       finalSource,

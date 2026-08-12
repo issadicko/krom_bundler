@@ -1,3 +1,15 @@
+## 0.3.14
+
+- Préview embarquée reconstruite sur **kmini_program 1.6.4**. Ce que la préview
+  ignorait jusque-là : `Positioned` et les neuf alignements d'un `Stack`, les
+  dix props de `Image` (opacité, teinte, coins arrondis, décodage à la taille
+  affichée), le champ de saisie et les surfaces modales qui suivent le thème de
+  l'hôte, et la capsule à deux zones — « ••• » ouvre le menu, « ✕ » ferme.
+
+  Sans cette reconstruction, `krom dev` affichait ces props comme si elles
+  n'existaient pas, sans erreur, et `Positioned` y était une variable
+  indéfinie.
+
 ## 0.3.13
 
 - Préview embarquée reconstruite sur **kmini_program 1.6.0**. Ce qui a été

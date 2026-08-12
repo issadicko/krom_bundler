@@ -1,3 +1,11 @@
+## 0.3.13
+
+- Préview embarquée reconstruite sur **kmini_program 1.6.0**. Ce qui a été
+  ajouté au champ texte s'y rend enfin : le masque (`mask: "## ## ## ##"`), le
+  groupage des milliers (`thousands`), un widget libre en préfixe ou suffixe,
+  le style du champ et du bouton. Sans cette reconstruction, `krom dev`
+  affichait ces props comme si elles n'existaient pas — sans erreur.
+
 ## 0.3.12
 
 - Préview embarquée reconstruite sur **kmini_program 1.5.4** / **krom_script

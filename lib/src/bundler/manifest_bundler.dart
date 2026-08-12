@@ -8,6 +8,7 @@ import '../libs/known_libs.dart';
 import '../utils/logger.dart';
 import 'bundler.dart';
 import 'manifest_validator.dart';
+import 'module_scope.dart';
 import 'minifier.dart';
 import 'source_map.dart';
 
@@ -54,6 +55,11 @@ class ManifestBundler {
         enableOptimizer: false,
         minify: false,
         projectRoot: _projectRoot,
+        reservedNames: {
+          ...kHostGlobals,
+          ..._customWidgets,
+          ...KnownLibs.moduleNamesFor(_libPacks),
+        },
       );
 
   /// Bundle a mini-app project from its manifest.

@@ -12,3 +12,7 @@ test_project/
 # binaire (voir dev_server). Doublon de lib/src/preview/preview_assets.g.dart :
 # régénéré par `make embed-preview` depuis krom_bundler_web, jamais versionné.
 web_build/
+
+# Surcharge locale des dépendances (krom_script en cours de développement).
+# `dart pub` la lit avant pubspec.yaml ; propre à chaque machine.
+pubspec_overrides.yaml

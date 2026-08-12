@@ -1,3 +1,52 @@
+## 0.3.16
+
+### `@use "…" as ns` — les imports ont enfin une portée
+
+`@use` recopiait le fichier importé dans la portée de l'importeur. Deux
+fichiers déclarant `let T` se marchaient dessus en silence, et la valeur que
+lisait une fonction dépendait de l'ordre des imports : le dernier fichier
+écrasait le premier, sans erreur ni avertissement.
+
+La nouvelle forme donne un nom au module :
+
+```
+@use "utils/ui.ks" as styles
+
+fn build() { return Box({ color: styles.T.bg }) }
+```
+
+Le bundler compile le module en fermeture et en expose les déclarations de
+premier niveau. Deux modules peuvent désormais déclarer le même nom. Le module
+n'est émis qu'une fois, quel que soit le nombre d'importeurs, chacun gardant
+son propre alias.
+
+La forme sans `as` ne bouge pas d'un octet — vérifié en rebuildant un projet
+existant et en comparant les scripts produits.
+
+### Ce que le bundler refuse maintenant
+
+- un module importé à la fois avec et sans `as` ;
+- un alias qui désigne deux modules différents ;
+- un alias qui recouvre un widget, un `customWidget` ou un namespace de l'hôte
+  (`ui`, `nav`, `theme`, `storage`, `device`, `timer`, `request`, `args`) ;
+- **un fichier qui utilise l'alias d'un autre fichier.** Le bundle est plat, le
+  nom s'y résoudrait ; mais le jour où les modules deviendront une notion du
+  langage, cette portée-là disparaîtra. Autant l'interdire tout de suite que
+  laisser du code s'installer dessus.
+
+### Migrer
+
+Un appel par nom doit être qualifié, y compris quand la fonction vit dans le
+fichier qui la nomme :
+
+```
+{ builder: "homeTab" }             → { builder: "homeView.homeTab" }
+```
+
+Demande **krom_script 1.0.4** : c'est lui qui résout les noms pointés à
+l'invocation, et qui garde un alias vivant à l'optimisation quand la seule
+référence est dans une chaîne.
+
 ## 0.3.15
 
 - Préview embarquée reconstruite sur **kmini_program 1.6.5** : `ListView` passe

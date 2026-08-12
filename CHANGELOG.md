@@ -1,3 +1,10 @@
+## 0.3.15
+
+- Préview embarquée reconstruite sur **kmini_program 1.6.5** : `ListView` passe
+  de 1 à 11 props (séparateurs, pagination, `shrinkWrap`/`physics`),
+  `ui.scrollTo` existe, et `disabled` veut enfin dire quelque chose sur
+  `Switch`, `Checkbox`, `Slider`, `RadioGroup` et `Segmented`.
+
 ## 0.3.14
 
 - Préview embarquée reconstruite sur **kmini_program 1.6.4**. Ce que la préview

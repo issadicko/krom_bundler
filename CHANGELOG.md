@@ -47,6 +47,12 @@ Demande **krom_script 1.0.4** : c'est lui qui résout les noms pointés à
 l'invocation, et qui garde un alias vivant à l'optimisation quand la seule
 référence est dans une chaîne.
 
+### Préview embarquée reconstruite sur kmini_program 1.6.6
+
+Sans ça, la préview aurait affiché un écran vide dès qu'une mini-app scopée
+nomme un builder : `builder: "vues.ligne"` ne se résout que depuis le SDK 1.6.6,
+lui-même sur krom_script 1.0.4.
+
 ### `krom build --stats`
 
 Chaque page est une unité autonome — le runtime lui donne son propre moteur,

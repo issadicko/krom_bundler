@@ -1,3 +1,18 @@
+## 0.3.18
+
+### `krom --version` dit la vérité
+
+La version vit à deux endroits : `pubspec.yaml` et la constante `kromVersion`
+de `bin/krom_bundler.dart`, celle que la commande affiche. Rien ne les liait.
+
+Les binaires 0.3.16 et 0.3.17 étaient les bons — code, assets, tout — mais
+annonçaient `krom 0.3.15`, ce qui donne exactement l'impression que
+l'installation a échoué. Constante remise d'aplomb, et un test la compare
+désormais au pubspec : la dérive ne peut plus repartir en release.
+
+Aucun changement de comportement. Si vous aviez installé 0.3.16 ou 0.3.17, le
+binaire faisait déjà ce qu'il fallait.
+
 ## 0.3.17
 
 ### `krom dev --remote` envoie les assets

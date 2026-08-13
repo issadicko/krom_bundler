@@ -1,3 +1,19 @@
+## 0.3.20
+
+### Un tag qui ne correspond pas à la source ne publie plus
+
+La version est écrite à trois endroits : `pubspec.yaml`, la constante
+`kromVersion`, et le tag git. La 0.3.18 a ajouté un test qui garde les deux
+fichiers d'accord — mais rien ne les reliait au tag, et 0.3.19 est partie avec
+un binaire qui annonçait `0.3.18`.
+
+Le workflow de release compare désormais les trois avant de construire quoi que
+ce soit. Un tag mal aligné échoue avec les trois valeurs affichées, au lieu de
+publier un binaire qui ment sur son propre nom — ce qui donne à qui réinstalle
+l'impression que rien ne s'est passé.
+
+Publier est irréversible ; échouer avant ne coûte qu'un tag à refaire.
+
 ## 0.3.18
 
 ### `krom --version` dit la vérité

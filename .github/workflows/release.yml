@@ -19,8 +19,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Le tag est le troisième endroit où la version est écrite, après pubspec.yaml
+  # et `kromVersion`. Un test garde les deux fichiers d'accord entre eux, mais
+  # rien ne les reliait au tag : 0.3.18 et 0.3.19 sont parties avec un binaire
+  # qui annonçait autre chose que son propre nom, et un utilisateur qui
+  # réinstalle croit alors que l'installation a échoué. Publier est irréversible
+  # — mieux vaut échouer ici.
+  check_version:
+    name: le tag correspond à la source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag, pubspec et kromVersion
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          expected="${TAG#v}"
+          pubspec=$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')
+          constant=$(grep -m1 'const String kromVersion' bin/krom_bundler.dart \
+                     | sed "s/.*'\(.*\)'.*/\1/")
+          echo "tag=$expected pubspec=$pubspec kromVersion=$constant"
+          if [ "$pubspec" != "$expected" ] || [ "$constant" != "$expected" ]; then
+            echo "::error::Le tag $TAG ne correspond pas à la source " \
+                 "(pubspec=$pubspec, kromVersion=$constant). " \
+                 "Alignez les trois avant de taguer."
+            exit 1
+          fi
+
   create_release:
     name: ensure release
+    needs: check_version
     runs-on: ubuntu-latest
     steps:
       - name: Create the release if it does not exist yet
@@ -34,7 +62,7 @@ jobs:
 
   build:
     name: build ${{ matrix.asset }}
-    needs: create_release
+    needs: [check_version, create_release]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

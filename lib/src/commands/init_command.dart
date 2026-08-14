@@ -75,6 +75,8 @@ class InitCommand extends Command<int> {
       return 1;
     }
 
+    // Le seul moment où la CLI se présente : la commande qui crée le projet.
+    Logger.banner(subtitle: 'Create a KromScript mini-app');
     Logger.header('Creating mini-app: $projectName');
 
     final template = argResults!['template'] as String;

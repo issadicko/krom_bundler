@@ -5,6 +5,8 @@ import 'package:krom_bundler/krom_bundler.dart';
 const String kromVersion = '0.3.20';
 
 void main(List<String> arguments) async {
+  Logger.version = kromVersion;
+
   // Load config
   final config = KromConfig();
   await config.load();
@@ -30,6 +32,13 @@ void main(List<String> arguments) async {
   if (arguments.contains('--verbose')) {
     Logger.verbose = true;
     arguments = arguments.where((a) => a != '--verbose').toList();
+  }
+
+  // `krom` sans rien : l'autre moment où quelqu'un découvre l'outil. Le
+  // bandeau ne sort pas sur `--help` d'une sous-commande, où l'on cherche une
+  // option précise et pas une présentation.
+  if (arguments.isEmpty) {
+    Logger.banner();
   }
 
   final runner = CommandRunner<int>(

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'banner.dart';
+
 /// Log levels for the Krom CLI logger.
 enum LogLevel { debug, info, success, warn, error }
 
@@ -9,7 +11,23 @@ enum LogLevel { debug, info, success, warn, error }
 /// with support for timers, progress indicators, and structured sections.
 class Logger {
   static bool verbose = false;
-  static bool _useColor = stdout.hasTerminal;
+
+  /// Version affichée sous le bandeau, posée au démarrage par `bin/`.
+  ///
+  /// La constante reste dans `bin/krom_bundler.dart` : le test de cohérence et
+  /// le job CI de release la cherchent là, et une seconde déclaration dans
+  /// `lib/` serait exactement la dérive qu'ils existent pour empêcher.
+  static String version = '';
+
+  /// Vrai quand la sortie va vers un terminal qui accepte la couleur.
+  ///
+  /// `hasTerminal` seul ne suffit pas : `NO_COLOR` est la convention que
+  /// respectent les CI et les utilisateurs qui n'en veulent pas, et `TERM=dumb`
+  /// annonce un terminal qui n'interprète aucune séquence — dans les deux cas,
+  /// écrire des codes ANSI revient à polluer la sortie de caractères parasites.
+  static bool _useColor = stdout.hasTerminal &&
+      !Platform.environment.containsKey('NO_COLOR') &&
+      Platform.environment['TERM'] != 'dumb';
 
   // ANSI color codes
   static const _reset = '\x1B[0m';
@@ -24,8 +42,34 @@ class Logger {
   static const _white = '\x1B[37m';
   static const _gray = '\x1B[90m';
 
+  /// Le vert-sarcelle de l'accent Krom (celui du guide, `#1d9e75`), en 256
+  /// couleurs — le seul mode que tous les terminaux modernes rendent pareil.
+  static const _accent = '\x1B[38;5;36m';
+
+  /// Force le mode couleur — réservé aux tests, qui comparent la sortie brute.
+  static set useColorForTests(bool value) => _useColor = value;
+
   static String _c(String color, String text) {
     return _useColor ? '$color$text$_reset' : text;
+  }
+
+  // --- Signature ---
+
+  /// Le mot KROM, la version et une ligne de description.
+  ///
+  /// Ne s'affiche que sur un terminal en couleurs : redirigé dans un fichier ou
+  /// dans un pipe, un bandeau de blocs n'est que du bruit à filtrer. Les
+  /// commandes qui l'appellent le font avant tout travail, jamais entre deux
+  /// étapes — c'est une entrée en matière, pas une décoration.
+  static void banner({String? subtitle}) {
+    if (!_useColor) return;
+    newline();
+    for (final row in kKromWordmark) {
+      stdout.writeln('  ${_c(_accent, row)}');
+    }
+    final tagline = subtitle ?? 'Bundle and serve KromScript projects';
+    stdout.writeln('  ${_c(_dim, 'v$version'.padRight(10))}${_c(_dim, tagline)}');
+    newline();
   }
 
   // --- Core log methods ---
@@ -113,6 +157,45 @@ class Logger {
     return '$bytes B';
   }
 
+  // --- Encadrés ---
+
+  /// Un encadré titré, ses lignes alignées sur la clé la plus longue.
+  ///
+  /// Les valeurs arrivent **sans couleur** : la bordure se calcule sur la
+  /// largeur visible, et une séquence ANSI déjà posée par l'appelant la
+  /// fausserait — un cadre décalé d'autant de caractères qu'il y a de codes.
+  /// La mise en avant se demande par [highlight], pas en pré-colorant.
+  static void panel(
+    String title,
+    List<(String, String)> rows, {
+    String color = _cyan,
+    String? highlight,
+    String? footer,
+  }) {
+    if (rows.isEmpty) return;
+    final keyWidth = rows.map((r) => r.$1.length).reduce((a, b) => a > b ? a : b);
+    final bodyWidth = rows
+        .map((r) => keyWidth + 2 + r.$2.length)
+        .followedBy([title.length + 2, if (footer != null) footer.length])
+        .reduce((a, b) => a > b ? a : b);
+
+    final head = '╭─ $title ${'─' * (bodyWidth - title.length - 1)}╮';
+    newline();
+    stdout.writeln('  ${_c(color, head)}');
+    for (final (key, value) in rows) {
+      final label = _c(_dim, '$key:'.padRight(keyWidth + 1));
+      final shown = key == highlight ? _c('$_bold$_white', value) : value;
+      final padding = ' ' * (bodyWidth - keyWidth - 2 - value.length);
+      stdout.writeln(
+          '  ${_c(color, '│')} $label $shown$padding ${_c(color, '│')}');
+    }
+    if (footer != null) {
+      stdout.writeln('  ${_c(color, '│')} ${_c(_dim, footer.padRight(bodyWidth))} ${_c(color, '│')}');
+    }
+    stdout.writeln('  ${_c(color, '╰${'─' * (bodyWidth + 2)}╯')}');
+    newline();
+  }
+
   // --- Build summary ---
 
   static void buildSummary({
@@ -122,21 +205,17 @@ class Logger {
     int? outputSize,
     String? outputPath,
   }) {
-    newline();
-    stdout.writeln(_c('$_bold$_green', '  Build Summary'));
-    stdout.writeln(_c(_dim, '  ${'─' * 13}'));
-    keyValue('  Duration', formatDuration(duration));
-    keyValue('  Pages', '$pages');
-    if (components != null && components > 0) {
-      keyValue('  Components', '$components');
-    }
-    if (outputSize != null) {
-      keyValue('  Output size', formatSize(outputSize));
-    }
-    if (outputPath != null) {
-      keyValue('  Output', outputPath);
-    }
-    newline();
+    panel(
+      'Build',
+      [
+        ('Duration', formatDuration(duration)),
+        ('Pages', '$pages'),
+        if (components != null && components > 0) ('Components', '$components'),
+        if (outputSize != null) ('Output size', formatSize(outputSize)),
+        if (outputPath != null) ('Output', outputPath),
+      ],
+      color: _green,
+    );
   }
 
   // --- Error reporting ---
@@ -171,14 +250,18 @@ class Logger {
     required int port,
     required String manifestPath,
   }) {
-    newline();
-    stdout.writeln(_c('$_bold$_magenta', '  Krom Dev Server'));
-    stdout.writeln(_c(_dim, '  ${'─' * 16}'));
-    keyValue('  URL', _c('$_bold$_white', 'http://$host:$port'));
-    keyValue('  Manifest', manifestPath);
-    keyValue('  Hot Reload', _c(_green, 'enabled'));
-    newline();
-    stdout.writeln(_c(_dim, '  Watching for changes... Press Ctrl+C to stop.'));
-    newline();
+    // L'URL est ce qu'on vient chercher des yeux pour la copier : elle est la
+    // seule ligne en gras de l'encadré.
+    panel(
+      'Krom Dev Server',
+      [
+        ('URL', 'http://$host:$port'),
+        ('Manifest', manifestPath),
+        ('Hot reload', 'enabled'),
+      ],
+      color: _magenta,
+      highlight: 'URL',
+      footer: 'Watching for changes… Ctrl+C to stop.',
+    );
   }
 }

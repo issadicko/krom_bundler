@@ -1,3 +1,46 @@
+## 0.4.0
+
+### `krom init` demande ce qu'on ne lui a pas dit
+
+La commande exigeait le nom du projet en argument et prenait le gabarit par
+défaut sans jamais montrer les six autres. Elle pose désormais les questions —
+nom, gabarit, et rattachement au backend quand la CLI est connectée. Flèches ou
+`j`/`k`, chiffres `1`-`9` en raccourci, les extrémités bouclent.
+
+Rien n'est demandé de ce qui a été écrit : `-t dashboard` ne rouvre pas la
+liste. Et rien n'est demandé hors d'un terminal — une CLI qui bloque sur une
+question dans un job CI ne se voit qu'au timeout, vingt minutes plus tard, sans
+une ligne pour l'expliquer. Sans terminal, l'absence de nom reste l'erreur
+qu'elle a toujours été, et tous les appels scriptés existants passent inchangés.
+
+Le mode brut est rétabli dans un `finally` : sortir en laissant l'écho coupé
+rend le shell inutilisable, et l'utilisateur n'a aucun moyen de deviner que
+c'est nous. Ctrl+C rétablit puis sort en 130.
+
+### La CLI dit son nom
+
+Un outil qu'on installe par `curl | sh` n'a qu'un endroit pour se présenter :
+la première commande qu'on tape. `krom init` et `krom` nu affichent le mot KROM
+en blocs, dans le vert-sarcelle de l'accent du guide, avec la version.
+
+Rien n'en sort quand la sortie n'est pas un terminal, et `krom --version` reste
+la ligne unique que le script d'installation lit.
+
+### Des encadrés qui se ferment
+
+Le serveur de dev et le résumé de build passent d'un titre souligné à un
+encadré, l'URL du serveur seule en gras — c'est ce qu'on vient chercher des
+yeux pour la copier. La largeur se calcule sur du texte non coloré : une
+séquence ANSI déjà posée fausserait le compte et décalerait la bordure d'autant
+de caractères qu'il y a de codes.
+
+### Le logger connaît enfin NO_COLOR
+
+Il décidait de colorer sur `stdout.hasTerminal` seul, et écrivait donc des
+séquences ANSI aux CI qui demandent `NO_COLOR`, et aux terminaux qui annoncent
+`TERM=dumb` n'interpréter aucune séquence. Elles y ressortaient en caractères
+parasites.
+
 ## 0.3.20
 
 ### Un tag qui ne correspond pas à la source ne publie plus

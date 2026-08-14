@@ -5,6 +5,21 @@ import '../backend/backend_client.dart';
 import '../backend/project_ref.dart';
 import '../utils/config.dart';
 import '../utils/logger.dart';
+import '../utils/prompt.dart';
+
+/// Les gabarits, et à quoi ils servent.
+///
+/// Une seule table : l'aide de `--template` et la liste que propose la question
+/// interactive la lisent toutes deux. Recopiée, la description finirait par ne
+/// plus décrire le même gabarit d'un endroit à l'autre.
+const Map<String, String> _templateDescriptions = {
+  'default': 'Themed starter: a welcome card and a reactive counter.',
+  'tabbed': 'Floating tab bar (TabHostNav), one component per tab.',
+  'list-detail': 'A list page navigating to a detail page (args).',
+  'form': 'A form: text field, select, switch, live summary and submit.',
+  'dashboard': 'A data dashboard: stat cards, BarChart and Gauge.',
+  'onboarding': 'A PageView carousel with dots and a "Get started" button.',
+};
 
 /// Init command - creates a new mini-app project.
 ///
@@ -31,53 +46,30 @@ class InitCommand extends Command<int> {
       ..addOption('template',
           abbr: 't',
           help: 'Project template.',
-          allowed: ['default', 'tabbed', 'list-detail', 'form', 'dashboard', 'onboarding'],
-          allowedHelp: {
-            'default': 'Themed starter: a welcome card and a reactive counter.',
-            'tabbed': 'Floating tab bar (TabHostNav), one component per tab.',
-            'list-detail': 'A list page navigating to a detail page (args).',
-            'form': 'A form: text field, select, switch, live summary and submit.',
-            'dashboard': 'A data dashboard: stat cards, BarChart and Gauge.',
-            'onboarding': 'A PageView carousel with dots and a "Get started" button.',
-          },
+          allowed: _templateDescriptions.keys.toList(),
+          allowedHelp: _templateDescriptions,
           defaultsTo: 'default');
   }
 
   @override
   Future<int> run() async {
-    if (argResults!.rest.isEmpty) {
-      Logger.bundleError(
-        message: 'Missing project name',
-        suggestion: 'Usage: krom init <project_name>',
-      );
+    // Le seul moment où la CLI se présente : la commande qui crée le projet.
+    // Avant les questions, comme une page de garde.
+    Logger.banner(subtitle: 'Create a KromScript mini-app');
+
+    final projectName = _resolveProjectName();
+    if (projectName == null) return 1;
+
+    final problem = _nameProblem(projectName);
+    if (problem != null) {
+      Logger.bundleError(message: problem.$1, suggestion: problem.$2);
       return 1;
     }
 
-    final projectName = argResults!.rest.first;
-
-    // Validate project name
-    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9_-]*$').hasMatch(projectName)) {
-      Logger.bundleError(
-        message: 'Invalid project name: "$projectName"',
-        suggestion:
-            'Use only letters, numbers, hyphens, and underscores. Must start with a letter.',
-      );
-      return 1;
-    }
-
-    final projectDir = Directory(projectName);
-
-    if (await projectDir.exists()) {
-      Logger.bundleError(
-        message: 'Directory "$projectName" already exists',
-        suggestion: 'Choose a different name or delete the existing directory.',
-      );
-      return 1;
-    }
+    final template = _resolveTemplate();
+    final link = await _resolveLink();
 
     Logger.header('Creating mini-app: $projectName');
-
-    final template = argResults!['template'] as String;
 
     try {
       Logger.step(1, 3, 'Creating project structure ($template)...');
@@ -104,7 +96,7 @@ class InitCommand extends Command<int> {
       Logger.fileCreated('$projectName/README.md');
       Logger.newline();
 
-      await _linkToBackend(projectName);
+      await _linkToBackend(projectName, link);
 
       Logger.info('Next steps:');
       Logger.hint('cd $projectName');
@@ -118,11 +110,97 @@ class InitCommand extends Command<int> {
     }
   }
 
+  /// Ce qui cloche dans [name] : le message, puis la piste. Null si tout va.
+  ///
+  /// Sert deux fois — à l'argument de la ligne de commande, et à chaque
+  /// tentative de saisie — pour que la règle soit dite au même moment quelle
+  /// que soit la façon dont le nom est arrivé.
+  (String, String)? _nameProblem(String name) {
+    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9_-]*$').hasMatch(name)) {
+      return (
+        'Invalid project name: "$name"',
+        'Use only letters, numbers, hyphens, and underscores. Must start with a letter.',
+      );
+    }
+    if (Directory(name).existsSync()) {
+      return (
+        'Directory "$name" already exists',
+        'Choose a different name or delete the existing directory.',
+      );
+    }
+    return null;
+  }
+
+  /// Le nom du projet : l'argument s'il est là, sinon la question.
+  ///
+  /// Hors terminal, l'absence d'argument reste l'erreur qu'elle a toujours été
+  /// — un script qui appelle `krom init` sans nom attend un code de sortie, pas
+  /// une invite qui ne viendra jamais.
+  String? _resolveProjectName() {
+    if (argResults!.rest.isNotEmpty) return argResults!.rest.first;
+
+    if (!Prompt.isInteractive) {
+      Logger.bundleError(
+        message: 'Missing project name',
+        suggestion: 'Usage: krom init <project_name>',
+      );
+      return null;
+    }
+
+    return Prompt.text(
+      'Nom du projet',
+      placeholder: 'ma-mini-app',
+      validate: (value) {
+        if (value.isEmpty) return 'Un nom est nécessaire.';
+        return _nameProblem(value)?.$1;
+      },
+    );
+  }
+
+  /// Le gabarit : `--template` s'il a été écrit, sinon la question, sinon
+  /// `default`. `wasParsed` et non la valeur : `-t default` explicite ne doit
+  /// pas rouvrir une liste dont on vient de choisir la première entrée.
+  String _resolveTemplate() {
+    if (argResults!.wasParsed('template')) {
+      return argResults!['template'] as String;
+    }
+    if (!Prompt.isInteractive) return 'default';
+
+    return Prompt.select<String>(
+      'Gabarit',
+      [
+        for (final entry in _templateDescriptions.entries)
+          PromptChoice(entry.key, entry.key, description: entry.value),
+      ],
+      initial: 'default',
+    );
+  }
+
+  /// Rattacher au backend : `--link` / `--no-link` s'ils ont été écrits, sinon
+  /// la question — mais seulement quand la CLI est connectée. Sans remote ni
+  /// jeton, il n'y a rien à décider, et `_linkToBackend` le dit déjà.
+  Future<bool> _resolveLink() async {
+    if (argResults!.wasParsed('link')) return argResults!['link'] as bool;
+    if (!Prompt.isInteractive) return true;
+
+    // Singleton, déjà chargé par `main` — comme le fait `_linkToBackend`.
+    final config = KromConfig();
+    final connected = config.remoteUrl != null &&
+        config.remoteUrl!.isNotEmpty &&
+        config.isAuthenticated;
+    if (!connected) return true;
+
+    return Prompt.confirm(
+      'Créer aussi l\'app sur ${config.remoteUrl}',
+      initial: true,
+    );
+  }
+
   /// Creates the app on the backend (find-or-create by slug) and writes its
   /// UUID into the fresh manifest. Best-effort: any failure downgrades to a
   /// hint pointing at `krom link` — init never fails because of the network.
-  Future<void> _linkToBackend(String projectName) async {
-    if (!(argResults!['link'] as bool)) return;
+  Future<void> _linkToBackend(String projectName, bool link) async {
+    if (!link) return;
     final config = KromConfig();
     if (config.remoteUrl == null ||
         config.remoteUrl!.isEmpty ||

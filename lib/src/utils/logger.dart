@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'ansi.dart';
 import 'banner.dart';
 
 /// Log levels for the Krom CLI logger.
@@ -19,39 +20,24 @@ class Logger {
   /// `lib/` serait exactement la dérive qu'ils existent pour empêcher.
   static String version = '';
 
-  /// Vrai quand la sortie va vers un terminal qui accepte la couleur.
-  ///
-  /// `hasTerminal` seul ne suffit pas : `NO_COLOR` est la convention que
-  /// respectent les CI et les utilisateurs qui n'en veulent pas, et `TERM=dumb`
-  /// annonce un terminal qui n'interprète aucune séquence — dans les deux cas,
-  /// écrire des codes ANSI revient à polluer la sortie de caractères parasites.
-  static bool _useColor = stdout.hasTerminal &&
-      !Platform.environment.containsKey('NO_COLOR') &&
-      Platform.environment['TERM'] != 'dumb';
-
-  // ANSI color codes
-  static const _reset = '\x1B[0m';
-  static const _bold = '\x1B[1m';
-  static const _dim = '\x1B[2m';
-  static const _red = '\x1B[31m';
-  static const _green = '\x1B[32m';
-  static const _yellow = '\x1B[33m';
-  static const _blue = '\x1B[34m';
-  static const _magenta = '\x1B[35m';
-  static const _cyan = '\x1B[36m';
-  static const _white = '\x1B[37m';
-  static const _gray = '\x1B[90m';
-
-  /// Le vert-sarcelle de l'accent Krom (celui du guide, `#1d9e75`), en 256
-  /// couleurs — le seul mode que tous les terminaux modernes rendent pareil.
-  static const _accent = '\x1B[38;5;36m';
+  // Alias locaux : tout le fichier écrit déjà `_c(_dim, …)`, et la palette vit
+  // désormais dans Ansi, partagée avec les questions interactives.
+  static const _bold = Ansi.bold;
+  static const _dim = Ansi.dim;
+  static const _red = Ansi.red;
+  static const _green = Ansi.green;
+  static const _yellow = Ansi.yellow;
+  static const _blue = Ansi.blue;
+  static const _magenta = Ansi.magenta;
+  static const _cyan = Ansi.cyan;
+  static const _white = Ansi.white;
+  static const _gray = Ansi.gray;
+  static const _accent = Ansi.accent;
 
   /// Force le mode couleur — réservé aux tests, qui comparent la sortie brute.
-  static set useColorForTests(bool value) => _useColor = value;
+  static set useColorForTests(bool value) => Ansi.enabled = value;
 
-  static String _c(String color, String text) {
-    return _useColor ? '$color$text$_reset' : text;
-  }
+  static String _c(String color, String text) => Ansi.paint(color, text);
 
   // --- Signature ---
 
@@ -62,7 +48,7 @@ class Logger {
   /// commandes qui l'appellent le font avant tout travail, jamais entre deux
   /// étapes — c'est une entrée en matière, pas une décoration.
   static void banner({String? subtitle}) {
-    if (!_useColor) return;
+    if (!Ansi.enabled) return;
     newline();
     for (final row in kKromWordmark) {
       stdout.writeln('  ${_c(_accent, row)}');

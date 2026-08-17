@@ -1,4 +1,8 @@
+import 'package:path/path.dart' as p;
+
+import '../libs/known_libs.dart';
 import 'bundler.dart';
+import 'module_scope.dart';
 
 /// Validates the structure of a Krom mini-app manifest, including the
 /// TCMPP-style fields: `window`, `tabBar`, `permissions`/`scopes`,
@@ -37,13 +41,13 @@ class ManifestValidator {
     _validateTabBar(manifest['tabBar'], pages, errors);
     _validatePermissions(manifest, errors);
     _validateNetworkTimeout(manifest['networkTimeout'], errors);
-    _validateSubpackages(manifest['subpackages'] ?? manifest['subPackages'],
-        pages, errors);
+    _validateSubpackages(
+        manifest['subpackages'] ?? manifest['subPackages'], pages, errors);
+    _validateDependencies(manifest['dependencies'], errors);
 
     if (errors.isNotEmpty) {
       final bullets = errors.map((e) => '  - $e').join('\n');
-      throw BundlerException(
-          'Manifest validation failed (${errors.length} '
+      throw BundlerException('Manifest validation failed (${errors.length} '
           'error${errors.length == 1 ? '' : 's'}):\n$bullets');
     }
   }
@@ -303,6 +307,69 @@ class ManifestValidator {
           } else if (rootStr != null) {
             pageOwner[page] = rootStr;
           }
+        }
+      }
+    }
+  }
+
+  // --- dependencies (paquets .ks) -------------------------------------------
+
+  static final _depName = RegExp(r'^[a-z][a-z0-9_-]*$');
+
+  static void _validateDependencies(dynamic deps, List<String> errors) {
+    if (deps == null) return;
+    if (deps is! Map) {
+      errors.add('"dependencies" must be an object mapping a name to '
+          '{ "git": ..., "ref": ... }.');
+      return;
+    }
+
+    for (final entry in deps.entries) {
+      final name = entry.key.toString();
+      final where = 'dependencies.$name';
+
+      if (!_depName.hasMatch(name)) {
+        errors.add('"$where" is not a valid dependency name (lowercase '
+            'letters, digits, "-" and "_", starting with a letter).');
+      } else if (KnownLibs.packs.contains(name)) {
+        errors.add('"$where" collides with the "$name" native pack '
+            '(requires) — pick another name.');
+      } else if (kHostGlobals.contains(name)) {
+        errors.add('"$where" collides with the "$name" host namespace — '
+            'pick another name.');
+      }
+
+      final value = entry.value;
+      if (value is! Map) {
+        errors.add('"$where" must be an object like '
+            '{ "git": "...", "ref": "..." }.');
+        continue;
+      }
+
+      const allowed = {'git', 'ref', 'path'};
+      for (final key in value.keys) {
+        if (!allowed.contains(key)) {
+          errors.add('"$where.$key" is not a recognised property. '
+              'Allowed: ${allowed.join(', ')}.');
+        }
+      }
+
+      for (final key in const ['git', 'ref']) {
+        final v = value[key];
+        if (v == null) {
+          errors.add('"$where.$key" is required.');
+        } else if (v is! String || v.isEmpty) {
+          errors.add('"$where.$key" must be a non-empty string.');
+        }
+      }
+
+      final path = value['path'];
+      if (path != null) {
+        if (path is! String || path.isEmpty) {
+          errors.add('"$where.path" must be a non-empty string.');
+        } else if (p.isAbsolute(path) || path.split('/').contains('..')) {
+          errors.add('"$where.path" must be a relative path inside the '
+              'repository (no leading "/", no "..").');
         }
       }
     }

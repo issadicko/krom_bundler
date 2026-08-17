@@ -50,6 +50,7 @@ void main(List<String> arguments) async {
     ..argParser
         .addFlag('verbose', negatable: false, help: 'Enable verbose output')
     ..addCommand(InitCommand())
+    ..addCommand(DepsCommand())
     ..addCommand(DevCommand())
     ..addCommand(BuildCommand())
     ..addCommand(BundleCommand())

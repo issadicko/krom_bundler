@@ -8,7 +8,7 @@ mini-apps Krom écrites en KromScript.
 ### macOS / Linux (recommandé)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/issadicko/krom_bundler/main/install.sh | sh
+curl -fsSL https://github.com/issadicko/krom_bundler/releases/latest/download/install.sh | sh
 ```
 
 Le script détecte ton OS et ton architecture (macOS/Linux, x64/arm64), télécharge
@@ -19,10 +19,10 @@ Options :
 
 ```sh
 # Épingler une version
-curl -fsSL https://raw.githubusercontent.com/issadicko/krom_bundler/main/install.sh | KROM_VERSION=v0.1.0 sh
+curl -fsSL https://github.com/issadicko/krom_bundler/releases/latest/download/install.sh | KROM_VERSION=v0.1.0 sh
 
 # Choisir le dossier d'installation
-curl -fsSL https://raw.githubusercontent.com/issadicko/krom_bundler/main/install.sh | KROM_INSTALL_DIR="$HOME/bin" sh
+curl -fsSL https://github.com/issadicko/krom_bundler/releases/latest/download/install.sh | KROM_INSTALL_DIR="$HOME/bin" sh
 ```
 
 ### Windows

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Krom CLI installer — downloads the right native binary for your OS/arch.
 #
-#   curl -fsSL https://raw.githubusercontent.com/issadicko/krom_bundler/main/install.sh | sh
+#   curl -fsSL https://github.com/issadicko/krom_bundler/releases/latest/download/install.sh | sh
 #
 # Env overrides:
 #   KROM_VERSION      version tag to install (default: latest), e.g. v0.1.0

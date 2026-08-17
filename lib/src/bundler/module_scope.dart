@@ -16,7 +16,8 @@ class KromImport {
   bool get isScoped => alias != null;
 
   @override
-  String toString() => alias == null ? '@use "$path"' : '@use "$path" as $alias';
+  String toString() =>
+      alias == null ? '@use "$path"' : '@use "$path" as $alias';
 }
 
 /// Les noms que le runtime injecte avant de charger le script. Un alias qui en
@@ -36,14 +37,87 @@ final _importPattern = RegExp(
   r'@use\s+"([^"]+)"(?:[^\S\n]+as[^\S\n]+([A-Za-z_][A-Za-z0-9_]*))?',
 );
 
-/// Every `@use` in [source], in order of appearance.
+/// [source] avec ses commentaires (`//`, `/* */`) blanchis, longueur et sauts
+/// de ligne préservés — un `@use` écrit dans un commentaire est de la
+/// documentation, pas une directive. Les chaînes restent intactes (les
+/// chemins d'import en sont), mais leur état est suivi : un `//` dans une
+/// chaîne n'ouvre pas de commentaire.
+String maskComments(String source) {
+  final out = source.codeUnits.toList();
+  const space = 0x20;
+  const newline = 0x0A;
+  var inString = false;
+  var stringChar = 0;
+  var inLine = false;
+  var inBlock = false;
+
+  void blank(int i) {
+    if (i < out.length && out[i] != newline) out[i] = space;
+  }
+
+  for (var i = 0; i < source.length; i++) {
+    final c = source.codeUnitAt(i);
+    if (inLine) {
+      if (c == newline) {
+        inLine = false;
+      } else {
+        blank(i);
+      }
+      continue;
+    }
+    if (inBlock) {
+      if (c == 0x2A /* * */ &&
+          i + 1 < source.length &&
+          source.codeUnitAt(i + 1) == 0x2F /* / */) {
+        blank(i);
+        blank(i + 1);
+        i++;
+        inBlock = false;
+      } else {
+        blank(i);
+      }
+      continue;
+    }
+    if (inString) {
+      // L'échappement se consomme en avançant — regarder en arrière se fait
+      // piéger par un antislash lui-même échappé.
+      if (c == 0x5C /* \ */) {
+        i++;
+        continue;
+      }
+      if (c == stringChar) inString = false;
+      continue;
+    }
+    if (c == 0x2F /* / */ && i + 1 < source.length) {
+      final next = source.codeUnitAt(i + 1);
+      if (next == 0x2F) {
+        inLine = true;
+        blank(i);
+        continue;
+      }
+      if (next == 0x2A /* * */) {
+        inBlock = true;
+        blank(i);
+        continue;
+      }
+    }
+    if (c == 0x22 /* " */ || c == 0x27 /* ' */) {
+      inString = true;
+      stringChar = c;
+    }
+  }
+  return String.fromCharCodes(out);
+}
+
+/// Every `@use` in [source], in order of appearance — comments masked first.
 List<KromImport> parseImports(String source) {
+  final masked = maskComments(source);
   final imports = <KromImport>[];
-  for (final match in _importPattern.allMatches(source)) {
+  for (final match in _importPattern.allMatches(masked)) {
     imports.add(KromImport(
       path: match.group(1)!,
       alias: match.group(2),
-      line: '\n'.allMatches(source.substring(0, match.start)).length + 1,
+      line: '\n'.allMatches(masked.substring(0, match.start)).length + 1,
     ));
   }
   return imports;
@@ -53,8 +127,19 @@ List<KromImport> parseImports(String source) {
 ///
 /// The directive is blanked rather than deleted so a file's own line numbers
 /// survive into the bundle: without that, everything below an import would
-/// already be off by one before the concatenation even starts.
-String stripImports(String source) => source.replaceAll(_importPattern, '');
+/// already be off by one before the concatenation even starts. Les directives
+/// sont repérées sur le texte masqué : celles des commentaires restent.
+String stripImports(String source) {
+  final masked = maskComments(source);
+  final buffer = StringBuffer();
+  var last = 0;
+  for (final match in _importPattern.allMatches(masked)) {
+    buffer.write(source.substring(last, match.start));
+    last = match.end;
+  }
+  buffer.write(source.substring(last));
+  return buffer.toString();
+}
 
 /// What a file declares at top level, and which free names it reads.
 class ModuleSurface {

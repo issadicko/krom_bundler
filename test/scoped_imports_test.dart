@@ -35,6 +35,7 @@ Future<Object?> _run(String bundle) async {
 }
 
 void main() {
+  _commentTests();
   group('@use ... as', () {
     test('deux modules peuvent déclarer le même nom', () async {
       final dir = _project({
@@ -47,8 +48,8 @@ void main() {
             'fn probe() { return palette.tint() + "/" + qr.render() }\n',
       });
 
-      expect(await _run(await _bundle(dir, 'pages/home.ks')),
-          '#123456/#000000');
+      expect(
+          await _run(await _bundle(dir, 'pages/home.ks')), '#123456/#000000');
     });
 
     test('la forme à plat, elle, laisse le dernier fichier gagner', () async {
@@ -142,7 +143,8 @@ void main() {
     test('un module importé des deux façons est refusé', () async {
       final dir = _project({
         'utils/ui.ks': 'let T = 1\n',
-        'features/a.ks': '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
+        'features/a.ks':
+            '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
         'pages/home.ks': '@use "../utils/ui.ks"\n'
             '@use "../features/a.ks" as fa\n'
             'fn probe() { return T }\n',
@@ -155,7 +157,8 @@ void main() {
       final dir = _project({
         'a/ui.ks': 'let T = 1\n',
         'b/ui.ks': 'let T = 2\n',
-        'features/a.ks': '@use "../a/ui.ks" as palette\nfn a() { return palette.T }\n',
+        'features/a.ks':
+            '@use "../a/ui.ks" as palette\nfn a() { return palette.T }\n',
         'pages/home.ks': '@use "../b/ui.ks" as palette\n'
             '@use "../features/a.ks" as fa\n'
             'fn probe() { return palette.T }\n',
@@ -196,7 +199,8 @@ void main() {
       // y serait résolu quand même. C'est précisément ce qui doit être refusé.
       final dir = _project({
         'utils/ui.ks': 'let T = 1\n',
-        'features/a.ks': '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
+        'features/a.ks':
+            '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
         'pages/home.ks': '@use "../features/a.ks" as fa\n'
             'fn probe() { return palette.T }\n',
       });
@@ -207,7 +211,8 @@ void main() {
     test('mais il peut le réimporter sous le même nom', () async {
       final dir = _project({
         'utils/ui.ks': 'let T = 7\n',
-        'features/a.ks': '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
+        'features/a.ks':
+            '@use "../utils/ui.ks" as palette\nfn a() { return palette.T }\n',
         'pages/home.ks': '@use "../utils/ui.ks" as palette\n'
             '@use "../features/a.ks" as fa\n'
             'fn probe() { return palette.T + fa.a() }\n',
@@ -223,6 +228,35 @@ void main() {
       });
 
       await expectRefus(dir, 'a.ks', contains('Circular dependency'));
+    });
+  });
+}
+
+// Un @use écrit dans un commentaire est de la documentation, pas un import —
+// le regex historique tournait sur la source brute et créait des imports
+// fantômes (découvert par le scaffold de `krom init --lib`, dont le
+// commentaire d'exemple important un paquet inexistant cassait le bundle).
+void _commentTests() {
+  group('@use et commentaires', () {
+    test('en ligne et en bloc : ignorés', () async {
+      final dir = _project({
+        'pages/home.ks': '// @use "fantome.ks"\n'
+            '/* @use "autre-fantome.ks" as x */\n'
+            'fn probe() { return "ok" }\n',
+      });
+      expect(await _run(await _bundle(dir, 'pages/home.ks')), 'ok');
+    });
+
+    test('un // dans une chaîne n\'avale pas l\'import suivant', () async {
+      final dir = _project({
+        'pages/lien.ks': 'let URL = "https://krom.dev"\n'
+            'fn lien() { return URL }\n',
+        'pages/home.ks': 'let DOC = "https://exemple.bf" // doc\n'
+            '@use "./lien.ks" as lien\n'
+            'fn probe() { return lien.lien() }\n',
+      });
+      expect(
+          await _run(await _bundle(dir, 'pages/home.ks')), 'https://krom.dev');
     });
   });
 }

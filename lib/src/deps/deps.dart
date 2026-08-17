@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+/// Nom valide d'une dépendance : minuscules, chiffres, `-` et `_`.
+final RegExp kDepNameRe = RegExp(r'^[a-z][a-z0-9_-]*$');
+
 /// Une dépendance .ks déclarée dans `dependencies` du manifeste : un dépôt
 /// git figé sur une ref, installé sous `.krom/deps/<nom>`.
 class KromDep {

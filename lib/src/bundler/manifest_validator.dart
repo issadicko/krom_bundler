@@ -1,5 +1,6 @@
 import 'package:path/path.dart' as p;
 
+import '../deps/deps.dart';
 import '../libs/known_libs.dart';
 import 'bundler.dart';
 import 'module_scope.dart';
@@ -314,8 +315,6 @@ class ManifestValidator {
 
   // --- dependencies (paquets .ks) -------------------------------------------
 
-  static final _depName = RegExp(r'^[a-z][a-z0-9_-]*$');
-
   static void _validateDependencies(dynamic deps, List<String> errors) {
     if (deps == null) return;
     if (deps is! Map) {
@@ -328,7 +327,7 @@ class ManifestValidator {
       final name = entry.key.toString();
       final where = 'dependencies.$name';
 
-      if (!_depName.hasMatch(name)) {
+      if (!kDepNameRe.hasMatch(name)) {
         errors.add('"$where" is not a valid dependency name (lowercase '
             'letters, digits, "-" and "_", starting with a letter).');
       } else if (KnownLibs.packs.contains(name)) {

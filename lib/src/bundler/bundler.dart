@@ -44,6 +44,11 @@ class Bundler {
   /// of them: the module would win the lookup and the widget would vanish.
   final Set<String> reservedNames;
 
+  /// Racines des dépendances .ks déclarées, nom → dossier absolu. Un import
+  /// nu dont le premier segment est l'une d'elles se résout dans la
+  /// dépendance, pas relativement au fichier.
+  final Map<String, String> depRoots;
+
   final Set<String> _inProgress = {}; // For circular detection
   final StringBuffer _output = StringBuffer();
   final List<BundleSegment> _segments = [];
@@ -74,6 +79,7 @@ class Bundler {
     this.minify = false,
     this.projectRoot,
     this.reservedNames = const {},
+    this.depRoots = const {},
   });
 
   /// Bundle the entry file and all its dependencies
@@ -280,18 +286,56 @@ class Bundler {
     return p.relative(absolutePath, from: root);
   }
 
-  /// Resolve import path relative to current file
+  /// Resolve import path relative to current file, or inside a declared
+  /// dependency when the first segment names one.
   String _resolveImportPath(String importPath, String baseDir) {
+    final dep = _resolveDepImport(importPath, baseDir);
+    if (dep != null) return dep;
+
     var resolved = importPath;
     if (!resolved.endsWith('.ks')) {
       resolved = '$resolved.ks';
     }
+    return p.normalize(p.join(baseDir, resolved));
+  }
 
-    if (resolved.startsWith('./') || resolved.startsWith('../')) {
-      return p.normalize(p.join(baseDir, resolved));
+  /// The dependency file `@use [importPath]` designates, or null when the
+  /// first segment is not a declared dependency. `@use "money"` alone means
+  /// the dependency's `main.ks`. An explicit `./` prefix always stays local,
+  /// and a bare `money.ks` does not match the dependency `money`.
+  String? _resolveDepImport(String importPath, String baseDir) {
+    if (depRoots.isEmpty) return null;
+    if (importPath.startsWith('./') || importPath.startsWith('../')) {
+      return null;
     }
 
-    return p.normalize(p.join(baseDir, resolved));
+    final slash = importPath.indexOf('/');
+    final first = slash < 0 ? importPath : importPath.substring(0, slash);
+    final root = depRoots[first];
+    if (root == null) return null;
+
+    final rest = slash < 0 ? '' : importPath.substring(slash + 1);
+    var target = rest.isEmpty ? 'main.ks' : rest;
+    if (!target.endsWith('.ks')) target = '$target.ks';
+
+    final resolved = p.normalize(p.join(root, target));
+    if (!p.isWithin(root, resolved)) {
+      throw BundlerException(
+          '@use "$importPath" escapes dependency "$first" — imports may not '
+          'leave the dependency directory.');
+    }
+
+    // Un fichier local homonyme ne doit pas être masqué en silence.
+    final local = importPath.endsWith('.ks') ? importPath : '$importPath.ks';
+    if (File(p.normalize(p.join(baseDir, local))).existsSync()) {
+      throw BundlerException(
+          '@use "$importPath" is ambiguous: "$first" is a declared '
+          'dependency, but the local file "$local" also exists next to the '
+          'importer. Use "./$local" for the local file, or rename one of '
+          'them.');
+    }
+
+    return resolved;
   }
 
   /// Apply code optimizations
@@ -338,20 +382,33 @@ class Bundler {
   /// palette from `theme.*` (e.g. `let T = { primary: theme.primary }`).
   static const Map<String, Object?> _defaultThemeVars = {
     'brightness': 'light',
-    'primary': '#6750A4', 'onPrimary': '#FFFFFF',
-    'primaryContainer': '#EADDFF', 'onPrimaryContainer': '#21005D',
-    'secondary': '#625B71', 'onSecondary': '#FFFFFF',
-    'secondaryContainer': '#E8DEF8', 'onSecondaryContainer': '#1D192B',
-    'tertiary': '#7D5260', 'onTertiary': '#FFFFFF',
-    'surface': '#FEF7FF', 'onSurface': '#1D1B20', 'onSurfaceVariant': '#49454F',
-    'surfaceContainerLowest': '#FFFFFF', 'surfaceContainerLow': '#F7F2FA',
-    'surfaceContainer': '#F3EDF7', 'surfaceContainerHigh': '#ECE6F0',
+    'primary': '#6750A4',
+    'onPrimary': '#FFFFFF',
+    'primaryContainer': '#EADDFF',
+    'onPrimaryContainer': '#21005D',
+    'secondary': '#625B71',
+    'onSecondary': '#FFFFFF',
+    'secondaryContainer': '#E8DEF8',
+    'onSecondaryContainer': '#1D192B',
+    'tertiary': '#7D5260',
+    'onTertiary': '#FFFFFF',
+    'surface': '#FEF7FF',
+    'onSurface': '#1D1B20',
+    'onSurfaceVariant': '#49454F',
+    'surfaceContainerLowest': '#FFFFFF',
+    'surfaceContainerLow': '#F7F2FA',
+    'surfaceContainer': '#F3EDF7',
+    'surfaceContainerHigh': '#ECE6F0',
     'surfaceContainerHighest': '#E6E0E9',
-    'inverseSurface': '#322F35', 'onInverseSurface': '#F5EFF7',
+    'inverseSurface': '#322F35',
+    'onInverseSurface': '#F5EFF7',
     'inversePrimary': '#D0BCFF',
-    'error': '#B3261E', 'onError': '#FFFFFF',
-    'errorContainer': '#F9DEDC', 'onErrorContainer': '#410E0B',
-    'outline': '#79747E', 'outlineVariant': '#CAC4D0',
+    'error': '#B3261E',
+    'onError': '#FFFFFF',
+    'errorContainer': '#F9DEDC',
+    'onErrorContainer': '#410E0B',
+    'outline': '#79747E',
+    'outlineVariant': '#CAC4D0',
   };
 
   /// Validate bundled output by parsing it.

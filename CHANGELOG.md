@@ -1,3 +1,38 @@
+## 0.6.0
+
+### Les dépendances .ks
+
+Entre le copier-coller de fichiers et la librairie native, il manquait un
+étage : des sources KromScript partagées, tirées de git. Le manifeste gagne un
+bloc `dependencies` (git + ref, `path` pour un monorepo), `krom.lock` fige le
+commit résolu, et l'installation vit sous `.krom/deps` — auto-gitignoré,
+vérifié au build sans réseau. Un `@use` dont le premier segment nomme une
+dépendance déclarée se résout dans ses fichiers (`money` nu → `main.ks`) ; un
+homonyme local est un refus net, jamais un ombrage, et `./` reste toujours
+local. Rien ne change au runtime : les sources sont inlinées au bundle comme
+n'importe quel `@use`.
+
+Quatre gestes : `krom deps status` (sans réseau, sort en erreur si quelque
+chose n'est pas prêt — pour la CI), `get` (installe au commit verrouillé, et
+refuse une ref qui a bougé en renvoyant vers `upgrade`), `add` (déclare,
+installe et verrouille — le manifeste n'est écrit qu'après une installation
+réussie), `upgrade` (accepte les nouveaux commits). L'authentification est
+celle du git de la machine : krom ne voit jamais de jeton.
+
+### `krom init --lib`
+
+Le scaffold d'un paquet partageable : `lib/` — ce que les consommateurs
+installent via `krom deps add … --path lib` — et une mini-app vitrine dont la
+page de démo importe `lib/` en relatif. `krom dev` recharge à chaque
+sauvegarde sous `lib/`, sans commit ni `deps get` ; on tague quand c'est prêt.
+
+### Un `@use` commenté n'est plus un import
+
+Les directives étaient cherchées dans la source brute : `// @use "x"` créait
+un import fantôme et cassait le bundle. Les commentaires sont masqués avant le
+parse — chaînes intactes mais suivies, un `//` d'URL n'ouvre rien — dans le
+bundler comme dans l'extension.
+
 ## 0.5.0
 
 ### La préview connaît QrCode

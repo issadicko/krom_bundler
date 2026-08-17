@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:krom_script/krom_script.dart';
 import 'package:krom_script/src/optimizer/optimizer.dart';
 import 'package:krom_script/src/ast/ast_printer.dart';
+import '../deps/deps.dart';
 import '../libs/known_libs.dart';
 import '../utils/logger.dart';
 import 'bundle_stats.dart';
@@ -51,6 +52,10 @@ class ManifestBundler {
   /// erreurs, pour qu'elles se lisent `pages/home.ks:180` depuis le projet.
   String? _projectRoot;
 
+  /// Racines des dépendances .ks déclarées (nom → dossier sous `.krom/deps`),
+  /// servies au résolveur d'imports de chaque page.
+  Map<String, String> _depRoots = const {};
+
   /// Ce que la duplication des modules a coûté au dernier build. Alimenté au
   /// fil des pages ; lu par `krom build --stats`.
   BundleStats stats = BundleStats();
@@ -65,6 +70,7 @@ class ManifestBundler {
           ..._customWidgets,
           ...KnownLibs.moduleNamesFor(_libPacks),
         },
+        depRoots: _depRoots,
       );
 
   /// Bundle a mini-app project from its manifest.
@@ -123,6 +129,24 @@ class ManifestBundler {
       ...declaredWidgets,
       ...KnownLibs.componentsFor(_libPacks),
     }.toList();
+
+    // Dépendances .ks : vérifiées contre krom.lock et les marqueurs
+    // d'installation — jamais le réseau. Un état pas prêt s'arrête ici, avec
+    // la commande à lancer, plutôt qu'en « File not found » au fond d'un
+    // import.
+    final deps = depsFromManifest(manifest);
+    if (deps.isEmpty) {
+      _depRoots = const {};
+    } else {
+      final problems = depProblems(manifestDir, deps);
+      if (problems.isNotEmpty) {
+        throw BundlerException(
+            'Dependencies are not ready:\n  - ${problems.join('\n  - ')}');
+      }
+      _depRoots = {
+        for (final dep in deps.values) dep.name: depDir(manifestDir, dep.name),
+      };
+    }
 
     // Imports are on-demand: each page/component pulls exactly the utilities it
     // `@use`s (transitively), nothing more. The legacy top-level `utils` list
@@ -216,8 +240,7 @@ class ManifestBundler {
     final entry = manifest['entry'] ??
         (pagesOutput.isNotEmpty ? pagesOutput.keys.first : null);
     if (entry is String && pageToSubpackage.containsKey(entry)) {
-      throw BundlerException(
-          'Entry page "$entry" cannot be inside subpackage '
+      throw BundlerException('Entry page "$entry" cannot be inside subpackage '
           '"${pageToSubpackage[entry]}"; the entry must stay in the main '
           'package so it loads on startup.');
     }

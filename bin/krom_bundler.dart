@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:krom_bundler/krom_bundler.dart';
 
-const String kromVersion = '0.5.0';
+const String kromVersion = '0.6.0';
 
 void main(List<String> arguments) async {
   Logger.version = kromVersion;
@@ -50,6 +50,7 @@ void main(List<String> arguments) async {
     ..argParser
         .addFlag('verbose', negatable: false, help: 'Enable verbose output')
     ..addCommand(InitCommand())
+    ..addCommand(DepsCommand())
     ..addCommand(DevCommand())
     ..addCommand(BuildCommand())
     ..addCommand(BundleCommand())

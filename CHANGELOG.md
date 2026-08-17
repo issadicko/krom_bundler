@@ -1,3 +1,12 @@
+## 0.5.0
+
+### La préview connaît QrCode
+
+La préview web embarquée dans le binaire est reconstruite contre kmini_program
+1.7.0. Sans ça, un `QrCode(...)` compilait, partait sur l'appareil, et ne
+s'affichait pas dans `krom dev` — l'écart entre les deux ne se voyait qu'au
+moment de tester.
+
 ## 0.4.0
 
 ### `krom init` demande ce qu'on ne lui a pas dit

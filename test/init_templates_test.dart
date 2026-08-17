@@ -38,7 +38,12 @@ void main() {
     final home = (bundle['pages'] as Map)['home'] as Map;
     final source = home['script'] as String;
     // The optimizer must keep the string-referenced tab builders.
-    for (final builder in ['homeTab', 'exploreTab', 'profileTab', 'counterValue']) {
+    for (final builder in [
+      'homeTab',
+      'exploreTab',
+      'profileTab',
+      'counterValue'
+    ]) {
       expect(source, contains('fn $builder'),
           reason: 'tree-shaker dropped $builder');
     }
@@ -54,23 +59,38 @@ void main() {
 
   test('form template bundles and keeps its reactive builders', () async {
     final bundle = await scaffoldAndBundle('form');
-    final source = ((bundle['pages'] as Map)['form'] as Map)['script'] as String;
+    final source =
+        ((bundle['pages'] as Map)['form'] as Map)['script'] as String;
     for (final builder in ['expressSwitch', 'resume', 'envoyer']) {
-      expect(source, contains('fn $builder'), reason: 'tree-shaker dropped $builder');
+      expect(source, contains('fn $builder'),
+          reason: 'tree-shaker dropped $builder');
     }
   });
 
   test('dashboard template bundles', () async {
     final bundle = await scaffoldAndBundle('dashboard');
     expect((bundle['pages'] as Map).keys, contains('dashboard'));
-    expect(((bundle['pages'] as Map)['dashboard'] as Map)['script'], contains('fn statTile'));
+    expect(((bundle['pages'] as Map)['dashboard'] as Map)['script'],
+        contains('fn statTile'));
   });
 
   test('onboarding template bundles and keeps every slide builder', () async {
     final bundle = await scaffoldAndBundle('onboarding');
-    final source = ((bundle['pages'] as Map)['onboarding'] as Map)['script'] as String;
+    final source =
+        ((bundle['pages'] as Map)['onboarding'] as Map)['script'] as String;
     for (final builder in ['slide1', 'slide2', 'slide3', 'commencer']) {
-      expect(source, contains('fn $builder'), reason: 'tree-shaker dropped $builder');
+      expect(source, contains('fn $builder'),
+          reason: 'tree-shaker dropped $builder');
     }
+  });
+
+  test('lib scaffold: la vitrine bundle depuis ses imports relatifs', () async {
+    final bundle = await scaffoldAndBundle('lib');
+    expect(bundle['id'], 'myapp');
+    final source =
+        ((bundle['pages'] as Map)['demo'] as Map)['script'] as String;
+    expect(source, contains('fn badge'), reason: 'lib/ui.ks absent du bundle');
+    expect(source, contains('LIB_VERSION'),
+        reason: 'lib/main.ks absent du bundle');
   });
 }

@@ -35,7 +35,7 @@ class InitCommand extends Command<int> {
   final description = 'Create a new KromLang mini-app project';
 
   @override
-  String get invocation => 'krom init <project_name>';
+  String get invocation => 'krom init <project_name> [--lib]';
 
   InitCommand() {
     argParser
@@ -43,6 +43,11 @@ class InitCommand extends Command<int> {
           defaultsTo: true,
           help: 'Also create the app on the backend (when connected) and write '
               'its "appId" into the manifest.')
+      ..addFlag('lib',
+          negatable: false,
+          help: 'Scaffold a shareable .ks package instead of an app: a lib/ '
+              'folder consumers install via `krom deps add … --path lib`, '
+              'plus a demo mini-app (vitrine) with live reload on lib/ edits.')
       ..addOption('template',
           abbr: 't',
           help: 'Project template.',
@@ -53,9 +58,14 @@ class InitCommand extends Command<int> {
 
   @override
   Future<int> run() async {
+    final isLib = argResults!['lib'] as bool;
+
     // Le seul moment où la CLI se présente : la commande qui crée le projet.
     // Avant les questions, comme une page de garde.
-    Logger.banner(subtitle: 'Create a KromScript mini-app');
+    Logger.banner(
+        subtitle: isLib
+            ? 'Create a shareable .ks package'
+            : 'Create a KromScript mini-app');
 
     final projectName = _resolveProjectName();
     if (projectName == null) return 1;
@@ -66,10 +76,13 @@ class InitCommand extends Command<int> {
       return 1;
     }
 
-    final template = _resolveTemplate();
-    final link = await _resolveLink();
+    // Une lib n'est pas une app du catalogue : ni gabarit, ni liaison backend.
+    final template = isLib ? 'lib' : _resolveTemplate();
+    final link = isLib ? false : await _resolveLink();
 
-    Logger.header('Creating mini-app: $projectName');
+    Logger.header(isLib
+        ? 'Creating .ks package: $projectName'
+        : 'Creating mini-app: $projectName');
 
     try {
       Logger.step(1, 3, 'Creating project structure ($template)...');
@@ -79,16 +92,20 @@ class InitCommand extends Command<int> {
         await file.parent.create(recursive: true);
         await file.writeAsString(entry.value);
       }
-      await Directory(p.join(projectName, 'assets', 'images'))
-          .create(recursive: true);
+      if (!isLib) {
+        await Directory(p.join(projectName, 'assets', 'images'))
+            .create(recursive: true);
+      }
 
       Logger.step(2, 3, 'Creating README...');
-      await File(p.join(projectName, 'README.md'))
-          .writeAsString(_readmeTemplate(projectName));
+      await File(p.join(projectName, 'README.md')).writeAsString(
+          isLib ? _libReadme(projectName) : _readmeTemplate(projectName));
 
       Logger.step(3, 3, 'Done.');
       Logger.newline();
-      Logger.success('Project "$projectName" created!');
+      Logger.success(isLib
+          ? 'Package "$projectName" created!'
+          : 'Project "$projectName" created!');
       Logger.newline();
       for (final path in files.keys) {
         Logger.fileCreated('$projectName/$path');
@@ -100,7 +117,15 @@ class InitCommand extends Command<int> {
 
       Logger.info('Next steps:');
       Logger.hint('cd $projectName');
-      Logger.hint('krom dev');
+      Logger.hint(isLib
+          ? 'krom dev    # la vitrine, rechargée à chaque édition de lib/'
+          : 'krom dev');
+      if (isLib) {
+        Logger.hint('git init -b main && git add . && '
+            'git commit -m "v0.1.0" && git tag v0.1.0');
+        Logger.hint('# consommer : krom deps add <url-du-dépôt> '
+            '--ref v0.1.0 --path lib');
+      }
       Logger.newline();
 
       return 0;
@@ -205,8 +230,7 @@ class InitCommand extends Command<int> {
     if (config.remoteUrl == null ||
         config.remoteUrl!.isEmpty ||
         !config.isAuthenticated) {
-      Logger.hint(
-          'Not connected to a backend — link later with "krom link".');
+      Logger.hint('Not connected to a backend — link later with "krom link".');
       Logger.newline();
       return;
     }
@@ -218,8 +242,7 @@ class InitCommand extends Command<int> {
       final app = existing ??
           await client.createApp(
               name: _toTitleCase(projectName), slug: projectName);
-      ManifestRef.load(p.join(projectName, 'manifest.json'))
-          .writeAppId(app.id);
+      ManifestRef.load(p.join(projectName, 'manifest.json')).writeAppId(app.id);
       Logger.success(existing != null
           ? 'Attached to the existing backend app "$projectName" (${app.id}).'
           : 'Created "$projectName" on ${config.remoteUrl} (appId ${app.id}).');
@@ -261,15 +284,25 @@ class InitCommand extends Command<int> {
         };
       case 'dashboard':
         return {
-          'manifest.json': _singlePageManifest(projectName, 'dashboard', 'dashboard'),
+          'manifest.json':
+              _singlePageManifest(projectName, 'dashboard', 'dashboard'),
           'pages/dashboard.ks': _dashboardPage,
           'utils/ui.ks': _themeUtils,
         };
       case 'onboarding':
         return {
-          'manifest.json': _singlePageManifest(projectName, 'onboarding', 'star'),
+          'manifest.json':
+              _singlePageManifest(projectName, 'onboarding', 'star'),
           'pages/onboarding.ks': _onboardingPage,
           'utils/ui.ks': _themeUtils,
+        };
+      case 'lib':
+        return {
+          'manifest.json': _libManifest(projectName),
+          'pages/demo.ks': _libDemoPage(projectName),
+          'lib/main.ks': _libMain(projectName),
+          'lib/ui.ks': _libUi,
+          '.gitignore': 'dist/\n',
         };
       default:
         return {
@@ -281,10 +314,140 @@ class InitCommand extends Command<int> {
     }
   }
 
+  // --- lib scaffold (vitrine) -----------------------------------------------
+
+  /// La vitrine : une mini-app de développement à la racine du dépôt de lib.
+  /// Jamais publiée ni liée — elle sert l'aperçu et le hot reload sur `lib/`.
+  String _libManifest(String projectName) => '''{
+  "id": "$projectName",
+  "name": "${_toTitleCase(projectName)}",
+  "version": "0.1.0",
+  "description": "Vitrine de la lib $projectName — développement seulement, jamais publiée.",
+  "author": "",
+  "entry": "demo",
+  "pages": {
+    "demo": {
+      "name": "${_toTitleCase(projectName)}",
+      "source": "pages/demo.ks",
+      "icon": "widgets"
+    }
+  },
+  "permissions": []
+}
+''';
+
+  String _libDemoPage(String projectName) =>
+      '''// La vitrine importe la lib en RELATIF (../lib/…) : chaque sauvegarde
+// sous lib/ recharge l'aperçu, sans commit ni deps get.
+// Les consommateurs, eux, écriront après `krom deps add … --path lib` :
+//   @use "$projectName/ui" as kui
+@use "../lib/main.ks" as lib
+@use "../lib/ui.ks" as kui
+
+fn build() {
+  return Scaffold({
+    appBar: AppBar({ title: "${_toTitleCase(projectName)} — vitrine" }),
+    body: ScrollView({ child: Padding({ padding: 16, child: Column({
+      spacing: 14,
+      crossAxisAlignment: "center",
+      children: [
+        Text("Chaque composant affiché ici vient de lib/.",
+             { fontSize: 13, color: "#6B6B6B", textAlign: "center" }),
+        Row({ spacing: 8, mainAxisAlignment: "center", children: [
+          kui.badge("Payé", "#0F8A3C"),
+          kui.badge("En attente", "#FF7900"),
+          kui.badge("Rejeté", "#CD3C14")
+        ]}),
+        Text("$projectName v" + lib.version(),
+             { fontSize: 11, color: "#9A9A9A", textAlign: "center" })
+      ]
+    }) }) })
+  })
+}
+''';
+
+  String _libMain(String projectName) =>
+      '''// $projectName — paquet .ks partagé. Point d'entrée volontairement
+// minimal : les modules s'importent directement (@use "$projectName/ui").
+let LIB_VERSION = "0.1.0"
+
+fn version() { return LIB_VERSION }
+''';
+
+  static const _libUi =
+      '''// Composants d'exemple — remplacez-les par les vôtres.
+
+// "#RRGGBB" + "AA" -> "#AARRGGBB"
+fn teinte(hexColor, aaHex) {
+  return "#" + aaHex + substring(hexColor, 1, length(hexColor))
+}
+
+// Pastille de statut : badge("Payé", "#0F8A3C")
+fn badge(texte, couleur) {
+  return Box({
+    color: teinte(couleur, "22"),
+    borderRadius: 999,
+    padding: 8,
+    child: Text(texte, { fontSize: 12, fontWeight: "semibold", color: couleur })
+  })
+}
+''';
+
+  String _libReadme(String projectName) => '''# ${_toTitleCase(projectName)}
+
+Paquet `.ks` partagé pour mini-apps Krom, avec sa vitrine de développement.
+`lib/` est ce que les consommateurs installent ; tout le reste sert l'aperçu.
+
+## Développer
+
+```bash
+krom dev
+```
+
+Puis `http://localhost:3000/?view=device&device=galaxy-s24` : la page
+`pages/demo.ks` importe `lib/` en relatif, chaque sauvegarde recharge
+l'aperçu.
+
+## Publier une version
+
+```bash
+git init -b main && git add . && git commit -m "v0.1.0" && git tag v0.1.0
+git remote add origin <url-du-depot> && git push -u origin main --tags
+```
+
+## Consommer
+
+Dans une mini-app (CLI `krom` ≥ 0.6.0) :
+
+```bash
+krom deps add <url-du-depot> --ref v0.1.0 --path lib
+```
+
+```ks
+@use "$projectName/ui" as kui
+
+fn build() {
+  return kui.badge("Payé", "#0F8A3C")
+}
+```
+
+## Structure
+
+```
+$projectName/
+├── lib/               le paquet — installé chez les consommateurs (--path lib)
+│   ├── main.ks        version() ; point d'entrée de @use "$projectName"
+│   └── ui.ks          vos composants
+├── pages/demo.ks      la vitrine (imports relatifs vers lib/)
+└── manifest.json      la mini-app de démo — jamais publiée
+```
+''';
+
   /// Manifest for a single-page template whose entry page is [page] (source
   /// `pages/<page>.ks`) shown with the [icon] tab glyph. No deprecated `utils`
   /// array — shared code is pulled in per page via `@use`.
-  String _singlePageManifest(String projectName, String page, String icon) => '''{
+  String _singlePageManifest(String projectName, String page, String icon) =>
+      '''{
   "id": "$projectName",
   "name": "${_toTitleCase(projectName)}",
   "version": "1.0.0",
@@ -322,7 +485,8 @@ class InitCommand extends Command<int> {
 }
 ''';
 
-  static const _tabbedShell = '''// Shell: a floating tab bar; each tab lives in utils/components/*.
+  static const _tabbedShell =
+      '''// Shell: a floating tab bar; each tab lives in utils/components/*.
 // Builders are referenced BY NAME ({ builder: "homeTab" }) — always use this
 // property form so the optimizer keeps them.
 @use "../utils/ui.ks"
@@ -350,7 +514,8 @@ fn build() {
 
   /// Shared palette derived from the host theme — follows light/dark
   /// automatically. Used by every template except `default`.
-  static const _themeUtils = '''// Palette dérivée du thème de l'hôte (suit clair/sombre automatiquement).
+  static const _themeUtils =
+      '''// Palette dérivée du thème de l'hôte (suit clair/sombre automatiquement).
 let T = {
   bg:      theme.surfaceContainerLow,
   card:    theme.surfaceContainerLowest,
@@ -369,7 +534,8 @@ fn card(child) {
 }
 ''';
 
-  static const _tabbedHomeTab = '''// Onglet Home : un compteur réactif pour démarrer.
+  static const _tabbedHomeTab =
+      '''// Onglet Home : un compteur réactif pour démarrer.
 @use "../ui.ks"
 
 let counter = Obs(0)
@@ -453,7 +619,8 @@ fn profileTab() {
 }
 ''';
 
-  static const _listData = '''// Données d'exemple — remplace par tes appels request(...) plus tard.
+  static const _listData =
+      '''// Données d'exemple — remplace par tes appels request(...) plus tard.
 let ITEMS = [
   { id: 1, emoji: "🚀", title: "Premier article",  subtitle: "Commence ici" },
   { id: 2, emoji: "🎨", title: "Deuxième article", subtitle: "Un peu de couleur" },
@@ -471,7 +638,8 @@ fn itemById(id) {
 }
 ''';
 
-  static const _listPage = '''// Liste : chaque ligne navigue vers la page détail avec son id (-> args).
+  static const _listPage =
+      '''// Liste : chaque ligne navigue vers la page détail avec son id (-> args).
 @use "../utils/ui.ks"
 @use "../utils/data.ks"
 
@@ -502,7 +670,8 @@ fn openItem(id) {
 }
 ''';
 
-  static const _detailPage = '''// Détail : lit l'id passé par la liste via `args`.
+  static const _detailPage =
+      '''// Détail : lit l'id passé par la liste via `args`.
 @use "../utils/ui.ks"
 @use "../utils/data.ks"
 
@@ -554,7 +723,8 @@ fn goBack() {
 }
 ''';
 
-  static const _homePageTemplate = '''// Page d'accueil — thème de l'hôte (clair/sombre auto), compteur réactif.
+  static const _homePageTemplate =
+      '''// Page d'accueil — thème de l'hôte (clair/sombre auto), compteur réactif.
 @use "../utils/ui.ks"
 @use "../components/app_button.ks"
 
@@ -588,7 +758,8 @@ fn onIncrement() { counter.set(counter.value + 1) }
 fn onDecrement() { counter.set(counter.value - 1) }
 ''';
 
-  static const _buttonComponentTemplate = '''// Composant bouton réutilisable, aligné sur le thème (T.primary).
+  static const _buttonComponentTemplate =
+      '''// Composant bouton réutilisable, aligné sur le thème (T.primary).
 // Nommé AppButton pour ne pas masquer le widget Button du cœur.
 @use "../utils/ui.ks"
 
@@ -603,7 +774,8 @@ fn AppButton(label, onTap) {
 
   // --- form template --------------------------------------------------------
 
-  static const _formPage = '''// Formulaire — champs, état réactif, résumé en direct, envoi.
+  static const _formPage =
+      '''// Formulaire — champs, état réactif, résumé en direct, envoi.
 @use "../utils/ui.ks"
 
 let montant = Obs("")
@@ -655,7 +827,8 @@ fn envoyer() { print("Transfert: " + montant.value + " / " + motif.value) }
 
   // --- dashboard template ---------------------------------------------------
 
-  static const _dashboardPage = '''// Tableau de bord — cartes de stats, BarChart et Gauge.
+  static const _dashboardPage =
+      '''// Tableau de bord — cartes de stats, BarChart et Gauge.
 @use "../utils/ui.ks"
 
 fn statTile(label, valeur, teinte) {
@@ -701,7 +874,8 @@ fn build() {
 
   // --- onboarding template --------------------------------------------------
 
-  static const _onboardingPage = '''// Onboarding — carrousel PageView avec points + bouton Commencer.
+  static const _onboardingPage =
+      '''// Onboarding — carrousel PageView avec points + bouton Commencer.
 @use "../utils/ui.ks"
 
 fn slide(emoji, titre, texte) {

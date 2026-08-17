@@ -79,22 +79,43 @@ jobs:
         include:
           - os: macos-14
             asset: krom-darwin-arm64
-          - os: macos-13
+            dart_arch: arm64
+            check_arch: arm64
+          # Le pool Intel (macos-13) ne rend plus de runner : v0.4.0 et v0.5.0
+          # sont parties sans binaire x64. Il se compile désormais sur le runner
+          # arm64, avec le SDK Dart x64 exécuté par Rosetta — un SDK x64 émet de
+          # l'x64, `dart compile exe` visant l'hôte qu'il croit être.
+          - os: macos-14
             asset: krom-darwin-x64
+            dart_arch: x64
+            check_arch: x86_64
           - os: ubuntu-latest
             asset: krom-linux-x64
+            dart_arch: x64
           - os: ubuntu-24.04-arm
             asset: krom-linux-arm64
+            dart_arch: arm64
           - os: windows-latest
             asset: krom-windows-x64.exe
+            dart_arch: x64
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
+        with:
+          architecture: ${{ matrix.dart_arch }}
       - name: Resolve dependencies
         run: dart pub get
       - name: Compile native executable
         shell: bash
         run: dart compile exe bin/krom_bundler.dart -o "${{ matrix.asset }}"
+      # Si setup-dart ignorait l'architecture demandée, on publierait un binaire
+      # arm64 sous un nom x64 — « Bad CPU type » chez l'utilisateur, pire qu'un
+      # asset absent. Vérifier coûte une ligne.
+      - name: Verify binary architecture
+        if: ${{ matrix.check_arch }}
+        run: |
+          file "${{ matrix.asset }}"
+          file "${{ matrix.asset }}" | grep -q "${{ matrix.check_arch }}"
       - name: Checksum
         shell: bash
         run: |

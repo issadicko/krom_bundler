@@ -1,3 +1,23 @@
+## 0.6.1
+
+### Une dépendance ne peut plus être détournée en silence
+
+Le bundle est plat : ce qu'une dépendance importe **sans alias** dépose ses
+déclarations au premier niveau, à côté de celles du projet — et le nom d'un
+module scopé y atterrit aussi. Un homonyme côté projet gagnait donc à
+l'exécution : la lib se mettait à lire *votre* valeur, sans erreur, sans
+avertissement, et c'est elle qui avait l'air cassée.
+
+Le build refuse maintenant, en nommant les deux fichiers et leur paquet, avec
+la sortie (renommer, ou importer avec `as`). Entre fichiers d'un même paquet,
+rien ne change : la règle historique reste « le dernier écrit gagne », leur
+auteur voit les deux et arbitre. Et aliaser le même module sous le même nom
+des deux côtés reste légal — il ne désigne qu'une seule chose.
+
+Côté auteur de lib, la parade tient en une ligne : aliasez vos imports
+internes avec un nom préfixé (`@use "./couleurs.ks" as kitCouleurs`), jamais
+`as c`.
+
 ## 0.6.0
 
 ### Les dépendances .ks

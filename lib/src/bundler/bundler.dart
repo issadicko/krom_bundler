@@ -15,6 +15,10 @@ class BundledModule {
   final List<KromImport> imports;
   final ModuleSurface surface;
 
+  /// Chemin d'import tel qu'écrit -> fichier absolu qu'il désigne. Rempli à
+  /// la collecte : l'émission relie chaque import sans avoir à re-résoudre.
+  final Map<String, String> resolvedImports;
+
   /// Aliases importers gave this module. Empty for the entry file and for a
   /// module every importer pulled in flat.
   final Set<String> aliases = {};
@@ -30,6 +34,7 @@ class BundledModule {
     required this.cleanedSource,
     required this.imports,
     required this.surface,
+    required this.resolvedImports,
   });
 
   bool get isScoped => aliases.isNotEmpty;
@@ -92,7 +97,6 @@ class Bundler {
 
     await _collect(entryPath, [entryPath]);
     _checkScopes();
-    _checkGlobalNames();
     _emit();
 
     _sourceMap = BundleSourceMap(
@@ -157,8 +161,10 @@ class Bundler {
       surface = const ModuleSurface(exports: [], freeNames: {});
     }
 
+    final resolved = <String, String>{};
     for (final import in imports) {
       final importPath = _resolveImportPath(import.path, baseDir);
+      resolved[import.path] = p.absolute(importPath);
       await _collect(importPath, [...importStack, p.basename(importPath)]);
 
       final imported = _modules[p.absolute(importPath)];
@@ -178,17 +184,27 @@ class Bundler {
       cleanedSource: cleanedSource,
       imports: imports,
       surface: surface,
+      resolvedImports: resolved,
     );
   }
 
   /// Reject the alias mistakes that would otherwise surface as a silent
   /// wrong-value at runtime.
+  ///
+  /// Un alias est lié dans la portée du fichier qui l'écrit : deux paquets
+  /// peuvent choisir le même nom sans jamais se voir. Les vérifications se
+  /// font donc paquet par paquet — sauf les noms réservés, qui appartiennent
+  /// à l'hôte partout.
   void _checkScopes() {
-    // alias -> module that owns it
-    final owners = <String, BundledModule>{};
-
     for (final module in _modules.values) {
-      if (module.importedFlat && module.isScoped) {
+      // Un module DU PROJET importé des deux façons ne peut pas être émis :
+      // avec un alias il devient une fermeture, et l'importateur à plat n'y
+      // trouverait rien. Une dépendance, elle, est toujours une fermeture et
+      // chaque importateur reçoit son propre lien : les deux formes
+      // cohabitent sans se gêner.
+      if (module.importedFlat &&
+          module.isScoped &&
+          _packageOf(module.path) == null) {
         throw BundlerException(
           '${_relative(module.path)} is imported both ways: with `as '
           '${module.aliases.first}` and without. Pick one — a module is either '
@@ -203,21 +219,34 @@ class Bundler {
             'or a host namespace. Choose another name.',
           );
         }
-        final owner = owners[alias];
-        if (owner != null && owner.path != module.path) {
-          throw BundlerException(
-            'Alias "$alias" names two different modules: '
-            '${_relative(owner.path)} and ${_relative(module.path)}.',
-          );
-        }
-        owners[alias] = module;
       }
     }
 
-    // An alias belongs to the file that imported it. The runtime bundle is
-    // flat, so nothing would stop a file from reading someone else's alias —
-    // and code that relied on it would break the day modules become real.
+    // paquet -> (alias -> module qu'il désigne dans ce paquet)
+    final ownersByPackage = <String?, Map<String, BundledModule>>{};
     for (final module in _modules.values) {
+      final owners =
+          ownersByPackage.putIfAbsent(_packageOf(module.path), () => {});
+      for (final import in module.imports) {
+        if (import.alias == null) continue;
+        final target = _modules[module.resolvedImports[import.path]];
+        if (target == null) continue;
+        final owner = owners[import.alias!];
+        if (owner != null && owner.path != target.path) {
+          throw BundlerException(
+            'Alias "${import.alias}" names two different modules: '
+            '${_relative(owner.path)} and ${_relative(target.path)}.',
+          );
+        }
+        owners[import.alias!] = target;
+      }
+    }
+
+    // An alias belongs to the file that imported it. Rien n'empêcherait un
+    // fichier de lire l'alias d'un voisin du même paquet — et ce code
+    // casserait le jour où les modules deviennent réels.
+    for (final module in _modules.values) {
+      final owners = ownersByPackage[_packageOf(module.path)] ?? const {};
       final own = module.imports
           .where((i) => i.alias != null)
           .map((i) => i.alias!)
@@ -244,74 +273,33 @@ class Bundler {
     return null;
   }
 
-  /// Refuse qu'un même nom du premier niveau du bundle soit posé par deux
-  /// paquets différents — le projet et une dépendance, ou deux dépendances.
+  /// Write the collected modules out.
   ///
-  /// Le bundle est plat : un module importé sans alias y déverse ses
-  /// déclarations, et un module scopé y pose le nom de son alias. Entre deux
-  /// fichiers d'un MÊME paquet, la collision garde la règle historique (le
-  /// dernier écrit gagne) — leur auteur voit les deux et arbitre. Entre
-  /// paquets, personne ne voit les deux : la dépendance se met à lire la
-  /// valeur du projet sans que rien ne le signale, et c'est la lib qui a
-  /// l'air cassée. Mieux vaut refuser le bundle que livrer ça.
-  void _checkGlobalNames() {
-    if (depRoots.isEmpty) return;
-
-    // nom global -> (ce qu'il désigne, paquet qui l'a posé, fichier fautif)
-    final owners = <String, (String, String?, String)>{};
-
-    void claim(String name, String target, String claimant) {
-      final package = _packageOf(claimant);
-      final previous = owners[name];
-      if (previous == null) {
-        owners[name] = (target, package, claimant);
-        return;
-      }
-      // Même chose désignée (deux paquets qui aliasent le même module), ou
-      // même paquet des deux côtés : rien à arbitrer ici.
-      if (previous.$1 == target || previous.$2 == package) return;
-
-      throw BundlerException(
-        'Top-level name "$name" is claimed by two packages:\n'
-        '  - ${_relative(previous.$3)} (${_packageLabel(previous.$2)})\n'
-        '  - ${_relative(claimant)} (${_packageLabel(package)})\n'
-        '  Both land at the top level of the bundle, where the last one '
-        'silently wins. Rename yours, or import the module with `as` so it '
-        'keeps its own namespace.',
-      );
-    }
-
-    for (final module in _modules.values) {
-      // Un module à plat déverse ses déclarations dans la portée globale.
-      if (!module.isScoped) {
-        for (final export in module.surface.exports) {
-          claim(export, module.path, module.path);
-        }
-      }
-      // Un alias appartient au fichier qui l'a écrit, pas au module importé.
-      for (final import in module.imports) {
-        if (import.alias == null) continue;
-        final target =
-            p.absolute(_resolveImportPath(import.path, p.dirname(module.path)));
-        claim(import.alias!, target, module.path);
-      }
-    }
-  }
-
-  String _packageLabel(String? package) =>
-      package == null ? 'this project' : 'dependency "$package"';
-
-  /// Write the collected modules out, wrapping the scoped ones.
+  /// Un module de dépendance est TOUJOURS enfermé dans sa fermeture, et ce
+  /// qu'il importe lui est relié nommément, chez lui. Ses déclarations et ses
+  /// alias internes n'existent donc que pour lui : le projet ne peut ni les
+  /// lire, ni les écraser — et deux dépendances ne se voient pas davantage.
+  ///
+  /// Les fichiers du projet gardent l'émission historique (à plat, ou en
+  /// fermeture quand ils sont importés `as`) : rien ne bouge pour un projet
+  /// sans dépendances. Seuls leurs imports de dépendances sont reliés
+  /// explicitement, là où ils sont écrits.
   void _emit() {
     for (final module in _modules.values) {
+      final isDep = _packageOf(module.path) != null;
       _output.writeln('// === ${p.basename(module.path)} ===');
       _line++;
 
-      final internal = module.isScoped ? _internalName(module.path) : null;
+      final internal =
+          isDep || module.isScoped ? _internalName(module.path) : null;
       if (internal != null) {
         _output.writeln('let $internal = fn() {');
         _line++;
       }
+
+      // Un module du projet trouve les fichiers du projet à plat, là où ils
+      // ont toujours été ; seules les dépendances demandent un lien.
+      _emitBindings(module, depsOnly: !isDep);
 
       final lineCount = countLines(module.cleanedSource);
       _segments.add(BundleSegment(
@@ -328,14 +316,42 @@ class Bundler {
         _output.writeln('return { $exports }');
         _output.writeln('}()');
         _line += 2;
-        for (final alias in module.aliases) {
-          _output.writeln('let $alias = $internal');
-          _line++;
+        // Une dépendance ne pose aucun nom global : c'est l'importateur qui
+        // lie l'alias chez lui, quand vient son tour.
+        if (!isDep) {
+          for (final alias in module.aliases) {
+            _output.writeln('let $alias = $internal');
+            _line++;
+          }
         }
       }
 
       _output.writeln();
       _line++;
+    }
+  }
+
+  /// Relie les imports de [module] dans sa propre portée : `as` pose l'alias,
+  /// la forme à plat pose chaque export du module importé.
+  ///
+  /// [depsOnly] saute les fichiers du projet — ils sont déjà émis à plat, et
+  /// les relier une seconde fois changerait la sémantique historique.
+  void _emitBindings(BundledModule module, {required bool depsOnly}) {
+    for (final import in module.imports) {
+      final target = _modules[module.resolvedImports[import.path]];
+      if (target == null) continue;
+      if (depsOnly && _packageOf(target.path) == null) continue;
+
+      final internal = _internalName(target.path);
+      if (import.alias != null) {
+        _output.writeln('let ${import.alias} = $internal');
+        _line++;
+        continue;
+      }
+      for (final name in target.surface.exports) {
+        _output.writeln('let $name = $internal.$name');
+        _line++;
+      }
     }
   }
 

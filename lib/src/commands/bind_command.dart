@@ -26,10 +26,11 @@ class BindCommand extends Command<int> {
       ..addOption('app',
           help: 'App id (UUID) or slug. Defaults to the manifest identity.')
       ..addMultiOption('super-app',
-          abbr: 's',
-          help: 'Super-app id(s) (UUID) to bind to. Repeatable.')
+          abbr: 's', help: 'Super-app id(s) (UUID) to bind to. Repeatable.')
       ..addOption('manifest',
-          abbr: 'm', help: 'Path to manifest.json', defaultsTo: 'manifest.json');
+          abbr: 'm',
+          help: 'Path to manifest.json',
+          defaultsTo: 'manifest.json');
   }
 
   @override
@@ -45,7 +46,8 @@ class BindCommand extends Command<int> {
     }
     if (token == null || token.isEmpty) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 

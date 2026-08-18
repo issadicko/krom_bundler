@@ -154,8 +154,8 @@ void main() {
         final m = baseManifest()..['networkTimeout'] = {'request': 0};
         expect(
           () => ManifestValidator.validate(m),
-          throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-              contains('networkTimeout.request'))),
+          throwsA(isA<BundlerException>().having(
+              (e) => e.message, 'message', contains('networkTimeout.request'))),
         );
       });
 
@@ -221,8 +221,8 @@ void main() {
           ];
         expect(
           () => ManifestValidator.validate(m),
-          throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-              contains('ghostPage'))),
+          throwsA(isA<BundlerException>()
+              .having((e) => e.message, 'message', contains('ghostPage'))),
         );
       });
 
@@ -240,8 +240,8 @@ void main() {
           ];
         expect(
           () => ManifestValidator.validate(m),
-          throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-              contains('only one subpackage'))),
+          throwsA(isA<BundlerException>().having(
+              (e) => e.message, 'message', contains('only one subpackage'))),
         );
       });
     });

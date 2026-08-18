@@ -7,7 +7,8 @@ void main() {
   group('EmbeddedPreview', () {
     test('a preview is embedded in the CLI', () {
       expect(EmbeddedPreview.isAvailable, isTrue,
-          reason: 'run `make embed-preview` to regenerate the embedded preview');
+          reason:
+              'run `make embed-preview` to regenerate the embedded preview');
       expect(EmbeddedPreview.buildId, isNotEmpty);
     });
 

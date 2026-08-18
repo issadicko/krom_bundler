@@ -13,10 +13,8 @@ const int kEmbeddedPreviewFileCount = 11;
 
 /// Web-preview files, path -> base64(gzip(bytes)).
 const Map<String, String> kEmbeddedPreviewGz = {
-  'assets/AssetManifest.bin':
-      'H4sIAAAAAAAAE+NlAACybHf0AgAAAA==',
-  'assets/AssetManifest.bin.json':
-      'H4sIAAAAAAAAE1NyCXS0VQIAfX206wYAAAA=',
+  'assets/AssetManifest.bin': 'H4sIAAAAAAAAE+NlAACybHf0AgAAAA==',
+  'assets/AssetManifest.bin.json': 'H4sIAAAAAAAAE1NyCXS0VQIAfX206wYAAAA=',
   'assets/FontManifest.json':
       'H4sIAAAAAAAAE4uuVkpLzM3MqVSyUvJNLEktykzM8UzOzytW0lFKy88rKVayiq5WSiwuTi1RsoKI6KOo0w1KTS/NSSzSyy9JU6qNrY0FAJF0l5JSAAAA',
   'assets/fonts/MaterialIcons-Regular.otf':

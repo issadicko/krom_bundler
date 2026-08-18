@@ -53,17 +53,17 @@ fn build() {
       // 2. Run build command with optimization
       final bundler = ManifestBundler(enableOptimizer: true);
       final resultJson = await bundler.bundleProject(manifestFile.path);
-      
+
       // 3. Verify output
       final manifest = jsonDecode(resultJson);
       final homeScript = manifest['pages']['home']['script'] as String;
-      
+
       print('Bundled script:\n$homeScript');
-      
+
       // Should contain used function
       expect(homeScript, contains('fn helper()'));
       expect(homeScript, contains('fn build()'));
-      
+
       // Should NOT contain unused function
       expect(homeScript, isNot(contains('fn unusedFunction()')));
       expect(homeScript, isNot(contains('I should be removed')));
@@ -101,11 +101,11 @@ fn build() {
       // 2. Run build command WITHOUT optimization
       final bundler = ManifestBundler(enableOptimizer: false);
       final resultJson = await bundler.bundleProject(manifestFile.path);
-      
+
       // 3. Verify output
       final manifest = jsonDecode(resultJson);
       final homeScript = manifest['pages']['home']['script'] as String;
-      
+
       // Should contain unused function
       expect(homeScript, contains('fn unusedFunction()'));
     });

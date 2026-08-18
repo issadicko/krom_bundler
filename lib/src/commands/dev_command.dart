@@ -136,7 +136,8 @@ class DevCommand extends Command<int> {
     }
     final lan = await lanIPv4();
     if (lan == null) {
-      Logger.hint('No LAN address found — connect to a network to scan-to-test.');
+      Logger.hint(
+          'No LAN address found — connect to a network to scan-to-test.');
       return;
     }
     final url = 'http://$lan:$port';
@@ -165,7 +166,8 @@ class DevCommand extends Command<int> {
     }
     if (token == null || token.isEmpty) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 
@@ -186,7 +188,8 @@ class DevCommand extends Command<int> {
     StreamSubscription<WatchEvent>? sub;
     try {
       Logger.step(1, 2, 'Resolving app "${manifest.slug}"...');
-      final app = (await resolveProjectApp(client: client, manifest: manifest))!;
+      final app =
+          (await resolveProjectApp(client: client, manifest: manifest))!;
       Logger.keyValue('App', '${app.name} (${app.id})');
 
       Logger.step(2, 2, 'Opening dev channel...');
@@ -302,7 +305,7 @@ class DevCommand extends Command<int> {
 
     final byPath = {for (final a in assets) _channelPath(a.relPath): a};
     var sent = 0;
-    var bytes = 0;  // octets réellement transmis
+    var bytes = 0; // octets réellement transmis
     for (final path in missing) {
       final asset = byPath[path];
       if (asset == null) continue;
@@ -320,7 +323,8 @@ class DevCommand extends Command<int> {
       }
     }
     if (sent > 0) {
-      Logger.info('$sent asset(s) sent (${(bytes / 1024).toStringAsFixed(1)} KB).');
+      Logger.info(
+          '$sent asset(s) sent (${(bytes / 1024).toStringAsFixed(1)} KB).');
     }
   }
 

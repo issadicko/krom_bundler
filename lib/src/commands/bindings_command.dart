@@ -39,7 +39,8 @@ class BindingsCommand extends Command<int> {
     }
     if (!config.isAuthenticated) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 

@@ -37,8 +37,9 @@ class KromConfig {
   /// The token to use for authenticated requests.
   ///
   /// Prefers the Personal Access Token, falling back to the legacy JWT.
-  String? get authToken =>
-      (_accessToken != null && _accessToken!.isNotEmpty) ? _accessToken : _token;
+  String? get authToken => (_accessToken != null && _accessToken!.isNotEmpty)
+      ? _accessToken
+      : _token;
 
   /// Whether any credential is currently stored.
   bool get isAuthenticated {

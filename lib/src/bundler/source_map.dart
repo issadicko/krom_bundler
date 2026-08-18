@@ -60,7 +60,9 @@ class BundleSourceMap {
       final end = segment.bundleStart + segment.lineCount;
       if (bundleLine >= segment.bundleStart && bundleLine < end) {
         return BundleLocation(
-          path: root == null ? segment.path : p.relative(segment.path, from: root),
+          path: root == null
+              ? segment.path
+              : p.relative(segment.path, from: root),
           line: bundleLine - segment.bundleStart + 1,
         );
       }

@@ -108,8 +108,7 @@ fn build() {
           compiledManifest: compiled,
           projectDir: tmp.path,
         ),
-        throwsA(predicate(
-            (e) => e.toString().contains('assets/missing.png'))),
+        throwsA(predicate((e) => e.toString().contains('assets/missing.png'))),
       );
     });
   });

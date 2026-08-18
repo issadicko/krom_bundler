@@ -6,8 +6,8 @@ import 'package:krom_bundler/src/backend/backend_client.dart';
 import 'package:test/test.dart';
 
 void main() {
-  BackendClient clientWith(MockClient mock) =>
-      BackendClient(baseUrl: 'http://localhost:8080/', token: 'krom_pat_x', httpClient: mock);
+  BackendClient clientWith(MockClient mock) => BackendClient(
+      baseUrl: 'http://localhost:8080/', token: 'krom_pat_x', httpClient: mock);
 
   String appsPage(List<Map<String, String>> items, {int totalPages = 1}) =>
       jsonEncode({'items': items, 'totalPages': totalPages, 'pageNumber': 0});
@@ -105,7 +105,8 @@ void main() {
   });
 
   group('deployPackage', () {
-    test('uploads a multipart version and returns the created version', () async {
+    test('uploads a multipart version and returns the created version',
+        () async {
       final client = clientWith(MockClient((req) async {
         expect(req.method, 'POST');
         expect(req.url.path, '/api/v1/apps/uuid-2/versions');

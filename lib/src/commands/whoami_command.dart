@@ -18,10 +18,10 @@ class WhoamiCommand extends Command<int> {
     Logger.keyValue('Remote', remoteUrl ?? '(not set)');
 
     if (config.isAuthenticated) {
-      final method = (config.accessToken != null &&
-              config.accessToken!.isNotEmpty)
-          ? 'Personal Access Token'
-          : 'legacy session (email/password)';
+      final method =
+          (config.accessToken != null && config.accessToken!.isNotEmpty)
+              ? 'Personal Access Token'
+              : 'legacy session (email/password)';
       Logger.success('Authenticated');
       Logger.keyValue('Method', method);
     } else {

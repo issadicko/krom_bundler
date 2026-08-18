@@ -17,7 +17,8 @@ void main() {
       if (await tempDir.exists()) await tempDir.delete(recursive: true);
     });
 
-    test('applies all optimizations: Inlining, CP, DCE, Tree Shaking', () async {
+    test('applies all optimizations: Inlining, CP, DCE, Tree Shaking',
+        () async {
       // 1. Create a simple project
       final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
       await manifestFile.writeAsString('''
@@ -59,16 +60,16 @@ fn build() {
       // 2. Run build command with optimization ENABLED
       final bundler = ManifestBundler(enableOptimizer: true);
       final resultJson = await bundler.bundleProject(manifestFile.path);
-      
+
       // 3. Verify output
       final manifest = jsonDecode(resultJson);
       final homeScript = manifest['pages']['home']['script'] as String;
-      
+
       print('Bundled optimized script:\n$homeScript');
-      
+
       // Tree Shaking
       expect(homeScript, isNot(contains('fn unused()')));
-      
+
       // Inlining & CP -> Expected to see '80' directly in return or variable
       // Since 'z' is returned, and 'z' folds to 80.
       // 'x' and 'y' might be removed if their values are folded into usage.
@@ -87,14 +88,14 @@ fn build() {
       // Then 'let z = 80' becomes unused.
       // Then DCE removes 'let z'.
       // So final output should be minimal.
-      
+
       expect(homeScript, contains('return 80'));
-      
+
       // DCE
       expect(homeScript, isNot(contains('unused_var')));
       expect(homeScript, isNot(contains('let x =')));
       expect(homeScript, isNot(contains('let y =')));
-      // 'add' function might remain if Tree Shaker runs BEFORE Inlining. 
+      // 'add' function might remain if Tree Shaker runs BEFORE Inlining.
       // If 'add' was inlined everywhere, it is still "used" according to Tree Shaker pass 1.
       // The current pipeline order is: TreeShaking -> Inlining -> CP -> DCE.
       // So 'add' will remain because at step 1 it is used.

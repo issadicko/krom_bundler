@@ -9,37 +9,110 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
     pack: 'arcade',
     version: '0.1.0',
     components: ['MysteryBox', 'ScratchCard', 'SpinWheel'],
-    modules: {'play': ['confetti', 'haptic', 'shuffle', 'weightedPick']},
+    modules: {
+      'play': ['confetti', 'haptic', 'shuffle', 'weightedPick']
+    },
   ),
   'charts': KromLibDescriptor(
     pack: 'charts',
     version: '1.0.0',
-    components: ['AreaChart', 'ChartLegend', 'DonutChart', 'LineChart', 'ScatterChart', 'Sparkline', 'StackedBarChart'],
-    modules: {'charts': ['formatNumber', 'niceScale', 'palette', 'percent']},
+    components: [
+      'AreaChart',
+      'ChartLegend',
+      'DonutChart',
+      'LineChart',
+      'ScatterChart',
+      'Sparkline',
+      'StackedBarChart'
+    ],
+    modules: {
+      'charts': ['formatNumber', 'niceScale', 'palette', 'percent']
+    },
   ),
   'media': KromLibDescriptor(
     pack: 'media',
     version: '1.1.0',
     components: ['CameraButton', 'MediaGrid', 'MediaThumb', 'PhotoView'],
-    modules: {'media': ['captureImage', 'pickImage', 'pickMultiple', 'pickVideo', 'toBase64']},
+    modules: {
+      'media': [
+        'captureImage',
+        'pickImage',
+        'pickMultiple',
+        'pickVideo',
+        'toBase64'
+      ]
+    },
   ),
   'forms': KromLibDescriptor(
     pack: 'forms',
     version: '1.2.0',
-    components: ['CurrencyField', 'Field', 'FieldError', 'FormBody', 'FormWizard', 'MaskedField', 'PhoneField', 'RatingField', 'SignaturePad', 'SubmitButton'],
-    modules: {'forms': ['digits', 'email', 'group', 'luhn', 'maxLength', 'minLength', 'phone', 'pickContact', 'range', 'required', 'validate']},
+    components: [
+      'CurrencyField',
+      'Field',
+      'FieldError',
+      'FormBody',
+      'FormWizard',
+      'MaskedField',
+      'PhoneField',
+      'RatingField',
+      'SignaturePad',
+      'SubmitButton'
+    ],
+    modules: {
+      'forms': [
+        'digits',
+        'email',
+        'group',
+        'luhn',
+        'maxLength',
+        'minLength',
+        'phone',
+        'pickContact',
+        'range',
+        'required',
+        'validate'
+      ]
+    },
   ),
   'sensors': KromLibDescriptor(
     pack: 'sensors',
     version: '0.1.0',
     components: [],
-    modules: {'deviceState': ['battery', 'network', 'stop', 'watchBattery', 'watchNetwork'], 'biometric': ['authenticate', 'available'], 'location': ['addGeofence', 'current', 'distance', 'permission', 'removeGeofence', 'stop', 'watch']},
+    modules: {
+      'deviceState': [
+        'battery',
+        'network',
+        'stop',
+        'watchBattery',
+        'watchNetwork'
+      ],
+      'biometric': ['authenticate', 'available'],
+      'location': [
+        'addGeofence',
+        'current',
+        'distance',
+        'permission',
+        'removeGeofence',
+        'stop',
+        'watch'
+      ]
+    },
   ),
   'nenga_form': KromLibDescriptor(
     pack: 'nenga_form',
     version: '0.6.2',
     components: ['NengaForm'],
-    modules: {'nenga': ['discardDraft', 'fillPlaceholder', 'latestDraft', 'loadForm', 'newDraft', 'openRequest', 'submit']},
+    modules: {
+      'nenga': [
+        'discardDraft',
+        'fillPlaceholder',
+        'latestDraft',
+        'loadForm',
+        'newDraft',
+        'openRequest',
+        'submit'
+      ]
+    },
   ),
 };
 

@@ -52,7 +52,11 @@ void main() {
       final manifest = baseManifest()
         ..['tabBar'] = {
           'list': [
-            {'pagePath': 'home', 'text': 'Home', 'iconPath': 'assets/icons/home.png'},
+            {
+              'pagePath': 'home',
+              'text': 'Home',
+              'iconPath': 'assets/icons/home.png'
+            },
           ],
         };
 
@@ -121,8 +125,8 @@ void main() {
           compiledManifest: baseManifest(),
           projectDir: tmp.path,
         ),
-        throwsA(isA<BundlerException>().having(
-            (e) => e.message, 'message', contains('assets/icon.png'))),
+        throwsA(isA<BundlerException>()
+            .having((e) => e.message, 'message', contains('assets/icon.png'))),
       );
     });
 
@@ -153,11 +157,13 @@ void main() {
       );
 
       final rels = result.assets.map((a) => a.relPath).toList();
-      expect(rels, containsAll(<String>[
-        'assets/icon.png',
-        'assets/extra/font.ttf',
-        'assets/photo.jpg',
-      ]));
+      expect(
+          rels,
+          containsAll(<String>[
+            'assets/icon.png',
+            'assets/extra/font.ttf',
+            'assets/photo.jpg',
+          ]));
       // Deterministic: sorted.
       final sorted = [...rels]..sort();
       expect(rels, equals(sorted));

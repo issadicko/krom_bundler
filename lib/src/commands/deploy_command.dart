@@ -93,7 +93,8 @@ class DeployCommand extends Command<int> {
     final bytes = await zip.readAsBytes();
     final version = _versionFromZip(bytes);
     if (version == null) {
-      Logger.error('Could not read "version" from app.json inside the package.');
+      Logger.error(
+          'Could not read "version" from app.json inside the package.');
       Logger.hint('Rebuild with "krom build" to regenerate a valid package.');
       return 1;
     }
@@ -191,8 +192,8 @@ class DeployCommand extends Command<int> {
           .whereType<File>()
           .where((f) => _isZip(f.path))
           .toList()
-        ..sort((a, b) =>
-            b.statSync().modified.compareTo(a.statSync().modified));
+        ..sort(
+            (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
       if (zips.isNotEmpty) return zips.first.path;
     }
     return null;

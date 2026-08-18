@@ -63,14 +63,20 @@ void main() {
     expect(manifest['id'], 'demo');
 
     ws.add(jsonEncode({'type': 'hello', 'device': 'iPhone Krom Go'}));
-    ws.add(jsonEncode(
-        {'type': 'log', 'level': 'error', 'device': 'iPhone', 'message': 'boom'}));
+    ws.add(jsonEncode({
+      'type': 'log',
+      'level': 'error',
+      'device': 'iPhone',
+      'message': 'boom'
+    }));
     await Future<void>.delayed(const Duration(milliseconds: 400));
 
     expect(printed.any((l) => l.contains('📱') && l.contains('iPhone Krom Go')),
-        isTrue, reason: 'hello line: $printed');
+        isTrue,
+        reason: 'hello line: $printed');
     expect(printed.any((l) => l.contains('📱 [error]') && l.contains('boom')),
-        isTrue, reason: 'log line: $printed');
+        isTrue,
+        reason: 'log line: $printed');
 
     // Garbage and manifest-only clients don't break anything.
     ws.add('not json');

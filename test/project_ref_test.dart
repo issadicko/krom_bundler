@@ -51,8 +51,8 @@ void main() {
 
       final raw = File(path).readAsStringSync();
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      expect(decoded.keys.toList(),
-          ['id', 'appId', 'name', 'version', 'entry']);
+      expect(
+          decoded.keys.toList(), ['id', 'appId', 'name', 'version', 'entry']);
       expect(decoded['appId'], _uuid);
       expect(ManifestRef.load(path).appId, _uuid);
     });
@@ -97,19 +97,18 @@ void main() {
   });
 
   group('resolveProjectApp', () {
-    test('trusts a valid manifest appId (single GET, no slug lookup)', () async {
+    test('trusts a valid manifest appId (single GET, no slug lookup)',
+        () async {
       final paths = <String>[];
       final client = clientWith(MockClient((req) async {
         paths.add(req.url.path);
         return http.Response(
-            jsonEncode({'id': _uuid, 'slug': 'wallet', 'name': 'Wallet'}),
-            200);
+            jsonEncode({'id': _uuid, 'slug': 'wallet', 'name': 'Wallet'}), 200);
       }));
       final manifest = ManifestRef.load(
           writeManifest({'id': 'wallet', 'appId': _uuid, 'name': 'Wallet'}));
 
-      final app =
-          await resolveProjectApp(client: client, manifest: manifest);
+      final app = await resolveProjectApp(client: client, manifest: manifest);
       expect(app?.id, _uuid);
       expect(paths, ['/api/v1/apps/$_uuid']);
     });
@@ -135,8 +134,7 @@ void main() {
           {'id': 'wallet', 'appId': _otherUuid, 'name': 'Wallet'});
       final manifest = ManifestRef.load(path);
 
-      final app =
-          await resolveProjectApp(client: client, manifest: manifest);
+      final app = await resolveProjectApp(client: client, manifest: manifest);
       expect(app?.id, _uuid);
       expect(ManifestRef.load(path).appId, _uuid, reason: 'self-healed');
     });
@@ -144,14 +142,12 @@ void main() {
     test('creates by slug when unlinked and writes the appId back', () async {
       final client = clientWith(MockClient((req) async {
         if (req.method == 'GET') {
-          return http.Response(
-              jsonEncode({'items': [], 'totalPages': 1}), 200);
+          return http.Response(jsonEncode({'items': [], 'totalPages': 1}), 200);
         }
         final body = jsonDecode(req.body) as Map<String, dynamic>;
         expect(body['slug'], 'wallet');
         return http.Response(
-            jsonEncode({'id': _uuid, 'slug': 'wallet', 'name': 'Wallet'}),
-            201);
+            jsonEncode({'id': _uuid, 'slug': 'wallet', 'name': 'Wallet'}), 201);
       }));
       final path = writeManifest({'id': 'wallet', 'name': 'Wallet'});
 
@@ -161,10 +157,11 @@ void main() {
       expect(ManifestRef.load(path).appId, _uuid);
     });
 
-    test('returns null (and leaves the manifest alone) when not found and '
+    test(
+        'returns null (and leaves the manifest alone) when not found and '
         'createIfMissing is false', () async {
-      final client = clientWith(MockClient((req) async => http.Response(
-          jsonEncode({'items': [], 'totalPages': 1}), 200)));
+      final client = clientWith(MockClient((req) async =>
+          http.Response(jsonEncode({'items': [], 'totalPages': 1}), 200)));
       final path = writeManifest({'id': 'wallet', 'name': 'Wallet'});
 
       final app = await resolveProjectApp(

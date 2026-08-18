@@ -273,8 +273,6 @@ class ManifestBundler {
       if (manifest['customWidgets'] != null)
         'customWidgets': manifest['customWidgets'],
       if (manifest['scopes'] != null) 'scopes': manifest['scopes'],
-      if (manifest['authorizeUrl'] != null)
-        'authorizeUrl': manifest['authorizeUrl'],
       // TCMPP-style configuration, passed through to the runtime.
       if (manifest['window'] != null) 'window': manifest['window'],
       if (manifest['tabBar'] != null) 'tabBar': manifest['tabBar'],

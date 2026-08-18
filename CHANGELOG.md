@@ -1,3 +1,29 @@
+## 0.7.0
+
+### Une dépendance est étanche
+
+La 0.6.1 refusait les collisions de noms entre paquets. La 0.7.0 fait qu'il
+n'y en a plus : chaque fichier d'une dépendance est compilé **dans sa propre
+portée**, et ce qu'il importe lui est relié nommément, chez lui. Ses
+déclarations et le nom qu'il donne à ses propres modules n'existent que pour
+lui — le projet ne peut ni les lire, ni les écraser, et deux dépendances ne se
+voient pas davantage. Vous ne voyez d'une dépendance que ce que vous importez.
+
+Deux conséquences directes :
+
+- Le nom d'alias qu'une lib choisit pour son usage interne n'occupe plus rien
+  chez vous : `as c` chez elle et `let c = …` chez vous cohabitent.
+- Un fichier de dépendance peut être importé **à plat dedans et avec un alias
+  dehors**. Cette combinaison échouait sur « imported both ways », et le `@use`
+  à corriger était dans le dépôt de la lib — vous n'aviez aucune prise.
+
+Les fichiers du projet gardent l'émission historique : à plat, ou en fermeture
+quand ils sont importés `as`. Un projet sans dépendances produit exactement le
+même bundle qu'avant. Un module partagé n'est instancié qu'une fois, donc
+l'état qu'il porte reste partagé.
+
+Le garde-fou de la 0.6.1 disparaît avec la classe de bug qu'il signalait.
+
 ## 0.6.1
 
 ### Une dépendance ne peut plus être détournée en silence

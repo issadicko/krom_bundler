@@ -95,7 +95,8 @@ class Prompt {
     if (choices.isEmpty) {
       throw ArgumentError('select() sans choix');
     }
-    final start = initial == null ? 0 : choices.indexWhere((c) => c.value == initial);
+    final start =
+        initial == null ? 0 : choices.indexWhere((c) => c.value == initial);
     final cursor = SelectCursor(choices.length, initial: start < 0 ? 0 : start);
     final reader = KeyReader();
 
@@ -113,14 +114,16 @@ class Prompt {
           // évite de dérouler une page entière à chaque flèche.
           stdout.write(Ansi.up(choices.length + 1));
         }
-        stdout.writeln('${Ansi.clearLine}  ${Ansi.paint(Ansi.cyan, '?')} $question '
+        stdout.writeln(
+            '${Ansi.clearLine}  ${Ansi.paint(Ansi.cyan, '?')} $question '
             '${Ansi.paint(Ansi.dim, '(↑↓ pour choisir, entrée pour valider)')}');
         for (var i = 0; i < choices.length; i++) {
           final choice = choices[i];
           final selected = i == cursor.index;
           final marker = selected ? Ansi.paint(Ansi.accent, '❯') : ' ';
           final label = selected
-              ? Ansi.paint('${Ansi.bold}${Ansi.accent}', choice.label.padRight(labelWidth))
+              ? Ansi.paint('${Ansi.bold}${Ansi.accent}',
+                  choice.label.padRight(labelWidth))
               : choice.label.padRight(labelWidth);
           final description = choice.description == null
               ? ''

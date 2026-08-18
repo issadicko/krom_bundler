@@ -32,7 +32,8 @@ class SuperAppsCommand extends Command<int> {
     }
     if (!config.isAuthenticated) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 
@@ -54,7 +55,8 @@ class SuperAppsCommand extends Command<int> {
         return 0;
       }
       for (final a in apps) {
-        Logger.keyValue(a.name, '${a.id}${a.status != null ? '  [${a.status}]' : ''}');
+        Logger.keyValue(
+            a.name, '${a.id}${a.status != null ? '  [${a.status}]' : ''}');
       }
       return 0;
     } on BackendException catch (e) {

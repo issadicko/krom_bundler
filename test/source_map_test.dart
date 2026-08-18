@@ -14,10 +14,10 @@ Directory _project({required String home}) {
   Directory(p.join(dir.path, 'components')).createSync();
   Directory(p.join(dir.path, 'pages')).createSync();
 
-  File(p.join(dir.path, 'utils', 'ui.ks')).writeAsStringSync(
-      'let T = {\n  bg: "#FFF",\n  text: "#000"\n}\n');
-  File(p.join(dir.path, 'components', 'btn.ks')).writeAsStringSync(
-      'fn Btn(label) {\n  return Button(label, {})\n}\n');
+  File(p.join(dir.path, 'utils', 'ui.ks'))
+      .writeAsStringSync('let T = {\n  bg: "#FFF",\n  text: "#000"\n}\n');
+  File(p.join(dir.path, 'components', 'btn.ks'))
+      .writeAsStringSync('fn Btn(label) {\n  return Button(label, {})\n}\n');
   File(p.join(dir.path, 'pages', 'home.ks')).writeAsStringSync(home);
   File(p.join(dir.path, 'manifest.json')).writeAsStringSync('''
 {
@@ -38,7 +38,8 @@ void main() {
     test('situe une ligne dans le fichier dont elle vient', () {
       final map = BundleSourceMap([
         BundleSegment(path: '/proj/utils/ui.ks', bundleStart: 2, lineCount: 5),
-        BundleSegment(path: '/proj/pages/home.ks', bundleStart: 9, lineCount: 40),
+        BundleSegment(
+            path: '/proj/pages/home.ks', bundleStart: 9, lineCount: 40),
       ], root: '/proj');
 
       expect(map.locate(2).toString(), 'utils/ui.ks:1');
@@ -58,7 +59,8 @@ void main() {
 
     test('réécrit les trois formats de position du moteur', () {
       final map = BundleSourceMap([
-        BundleSegment(path: '/proj/pages/home.ks', bundleStart: 10, lineCount: 50),
+        BundleSegment(
+            path: '/proj/pages/home.ks', bundleStart: 10, lineCount: 50),
       ], root: '/proj');
 
       expect(map.remap('SyntaxError: expected , at line 20:31'),
@@ -68,9 +70,11 @@ void main() {
       expect(map.remap('boom (at line 20:4)'), 'boom (at pages/home.ks:11:4)');
     });
 
-    test('un prélude devant le bundle décale tout ce que le moteur annonce', () {
+    test('un prélude devant le bundle décale tout ce que le moteur annonce',
+        () {
       final map = BundleSourceMap([
-        BundleSegment(path: '/proj/pages/home.ks', bundleStart: 1, lineCount: 50),
+        BundleSegment(
+            path: '/proj/pages/home.ks', bundleStart: 1, lineCount: 50),
       ], root: '/proj');
 
       expect(map.remap('err at line 13', preludeLines: 3),
@@ -79,7 +83,8 @@ void main() {
 
     test('une position hors table garde son numéro brut', () {
       final map = BundleSourceMap([
-        BundleSegment(path: '/proj/pages/home.ks', bundleStart: 10, lineCount: 5),
+        BundleSegment(
+            path: '/proj/pages/home.ks', bundleStart: 10, lineCount: 5),
       ], root: '/proj');
 
       expect(map.remap('err at line 900'), 'err at line 900');
@@ -88,7 +93,8 @@ void main() {
 
   group('Bundler', () {
     test('les @use gardent leur ligne : le fichier ne se décale pas', () async {
-      final dir = _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
+      final dir =
+          _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       final bundler = Bundler(projectRoot: dir.path);
@@ -104,7 +110,8 @@ void main() {
     });
 
     test('chaque ligne du bundle retombe sur sa ligne de fichier', () async {
-      final dir = _project(home: '${_imports}fn build() {\n  return Btn(T.bg)\n}\n');
+      final dir =
+          _project(home: '${_imports}fn build() {\n  return Btn(T.bg)\n}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       final bundler = Bundler(projectRoot: dir.path);
@@ -130,20 +137,21 @@ void main() {
 
   group('krom build / krom dev', () {
     test('une virgule manquante est signalée à la ligne du fichier', () async {
-      final dir = _project(home: '${_imports}fn build() {\n'
-          '  return Box({\n'
-          '    padding: 0\n'
-          '    color: "#FFF"\n'
-          '  })\n'
-          '}\n');
+      final dir = _project(
+          home: '${_imports}fn build() {\n'
+              '  return Box({\n'
+              '    padding: 0\n'
+              '    color: "#FFF"\n'
+              '  })\n'
+              '}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       // `padding: 0` est à la ligne 6 de pages/home.ks.
       await expectLater(
         ManifestBundler(enableOptimizer: true)
             .bundleProjectToMap(p.join(dir.path, 'manifest.json')),
-        throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-            contains('at pages/home.ks:6:'))),
+        throwsA(isA<BundlerException>().having(
+            (e) => e.message, 'message', contains('at pages/home.ks:6:'))),
       );
     });
 
@@ -158,8 +166,11 @@ void main() {
 
       await expectLater(
         ManifestBundler().bundleProjectToMap(p.join(dir.path, 'manifest.json')),
-        throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-            contains('undefined variable: paletteInexistante at pages/home.ks:4'))),
+        throwsA(isA<BundlerException>().having(
+            (e) => e.message,
+            'message',
+            contains(
+                'undefined variable: paletteInexistante at pages/home.ks:4'))),
       );
     });
 
@@ -167,26 +178,27 @@ void main() {
     // validation, et non de l'étape d'optimisation. Elle doit être située de
     // la même façon — c'est le chemin que le développeur emprunte le plus.
     test('sans optimisation (krom dev), la position est la même', () async {
-      final dir = _project(home: '${_imports}fn build() {\n'
-          '  return Box({\n'
-          '    padding: 0\n'
-          '    color: "#FFF"\n'
-          '  })\n'
-          '}\n');
+      final dir = _project(
+          home: '${_imports}fn build() {\n'
+              '  return Box({\n'
+              '    padding: 0\n'
+              '    color: "#FFF"\n'
+              '  })\n'
+              '}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       await expectLater(
-        ManifestBundler()
-            .bundleProjectToMap(p.join(dir.path, 'manifest.json')),
-        throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-            contains('at pages/home.ks:6:'))),
+        ManifestBundler().bundleProjectToMap(p.join(dir.path, 'manifest.json')),
+        throwsA(isA<BundlerException>().having(
+            (e) => e.message, 'message', contains('at pages/home.ks:6:'))),
       );
     });
-    });
+  });
 
   group('table embarquée dans le manifeste', () {
     test('krom dev écrit la table dans chaque page', () async {
-      final dir = _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
+      final dir =
+          _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       final manifest = await ManifestBundler(emitSourceMap: true)
@@ -200,12 +212,15 @@ void main() {
       // La table doit retomber sur le script effectivement publié.
       final lines = (page['script'] as String).split('\n');
       final home = map.firstWhere((s) => s['f'] == 'pages/home.ks');
-      final source = File(p.join(dir.path, 'pages', 'home.ks')).readAsLinesSync();
-      expect(lines[(home['d'] as int) + 2], source[3]); // 1re ligne après les @use
+      final source =
+          File(p.join(dir.path, 'pages', 'home.ks')).readAsLinesSync();
+      expect(
+          lines[(home['d'] as int) + 2], source[3]); // 1re ligne après les @use
     });
 
     test("un bundle publié n'embarque pas de table", () async {
-      final dir = _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
+      final dir =
+          _project(home: '${_imports}fn build() {\n  return Btn("ok")\n}\n');
       addTearDown(() => dir.deleteSync(recursive: true));
 
       // Le texte est réécrit par l'optimiseur : une table y serait fausse.

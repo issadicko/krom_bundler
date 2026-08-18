@@ -97,8 +97,8 @@ fn build() {
       final bundler = ManifestBundler();
       await expectLater(
         bundler.bundleProject(path),
-        throwsA(isA<BundlerException>().having((e) => e.message, 'message',
-            contains('does_not_exist'))),
+        throwsA(isA<BundlerException>()
+            .having((e) => e.message, 'message', contains('does_not_exist'))),
       );
     });
   });

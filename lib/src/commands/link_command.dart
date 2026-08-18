@@ -40,7 +40,8 @@ class LinkCommand extends Command<int> {
     }
     if (!config.isAuthenticated) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 
@@ -62,7 +63,8 @@ class LinkCommand extends Command<int> {
       );
       if (app == null) {
         Logger.error('App "${manifest.slug}" not found on the backend.');
-        Logger.hint('Drop --no-create to create it, or publish with "krom publish".');
+        Logger.hint(
+            'Drop --no-create to create it, or publish with "krom publish".');
         return 1;
       }
       Logger.success('Linked to ${app.name} (${app.id}).');

@@ -62,7 +62,9 @@ String _minifyCode(String span) {
   // NB: String.replaceAll treats the replacement as a literal ($1 is NOT a
   // backreference), so the group-preserving passes must use replaceAllMapped.
   var result = span.replaceAll(RegExp(r'\s+'), ' ');
-  result = result.replaceAllMapped(RegExp(r'\s*([{}()\[\],;:])\s*'), (m) => m[1]!);
-  result = result.replaceAllMapped(RegExp(r'\s*([=+\-*/<>!&|])\s*'), (m) => m[1]!);
+  result =
+      result.replaceAllMapped(RegExp(r'\s*([{}()\[\],;:])\s*'), (m) => m[1]!);
+  result =
+      result.replaceAllMapped(RegExp(r'\s*([=+\-*/<>!&|])\s*'), (m) => m[1]!);
   return result;
 }

@@ -19,8 +19,8 @@ Directory _project() {
   File(p.join(dir.path, 'assets', 'images', 'logo.png'))
       .writeAsBytesSync([1, 2, 3]);
   File(p.join(dir.path, 'assets', 'data.json')).writeAsStringSync('{}');
-  File(p.join(dir.path, 'pages', 'home.ks'))
-      .writeAsStringSync('fn build() { return Image("assets/images/logo.png") }\n');
+  File(p.join(dir.path, 'pages', 'home.ks')).writeAsStringSync(
+      'fn build() { return Image("assets/images/logo.png") }\n');
   return dir;
 }
 

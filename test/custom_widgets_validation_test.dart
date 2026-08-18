@@ -16,8 +16,8 @@ void main() {
     // Declaring it in customWidgets stubs it, so validation passes.
     test('declared custom widget validates', () async {
       final bundler = Bundler();
-      await bundler.validate('let x = RatingStars({})',
-          customWidgets: ['RatingStars']);
+      await bundler
+          .validate('let x = RatingStars({})', customWidgets: ['RatingStars']);
       // reaching here (no throw) is the assertion
     });
   });

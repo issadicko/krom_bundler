@@ -33,7 +33,8 @@ void main() {
 
     expect(lines, hasLength(6)); // haut + 3 lignes + pied + bas
     final widths = lines.map((l) => l.trimRight().length).toSet();
-    expect(widths, hasLength(1), reason: 'lignes de largeurs différentes : $lines');
+    expect(widths, hasLength(1),
+        reason: 'lignes de largeurs différentes : $lines');
   });
 
   test('le cadre est fermé, et le pied tient dedans', () {

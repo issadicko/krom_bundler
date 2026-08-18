@@ -43,7 +43,8 @@ void main() {
       );
     });
 
-    test('un appel de module à la racine valide — ce n\'était jamais une vraie '
+    test(
+        'un appel de module à la racine valide — ce n\'était jamais une vraie '
         'limite, seulement un angle mort du bundler', () async {
       final bundler = Bundler();
       await bundler.validate(
@@ -67,7 +68,8 @@ void main() {
       );
     });
 
-    test('la validation seule ne voit rien dans un corps de fonction — c\'est '
+    test(
+        'la validation seule ne voit rien dans un corps de fonction — c\'est '
         'pourquoi undeclaredUsage existe', () async {
       final bundler = Bundler();
       // Le moteur n'exécute que le premier niveau : ce LineChart non déclaré

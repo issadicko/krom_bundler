@@ -89,8 +89,8 @@ void main() {
         projectDir: tmp.path,
       );
 
-      final zipPath =
-          p.join(tmp.path, AssetPackager.packageFileName('com.example.app', '7.7.7'));
+      final zipPath = p.join(
+          tmp.path, AssetPackager.packageFileName('com.example.app', '7.7.7'));
       File(zipPath).writeAsBytesSync(result.zipBytes);
 
       // Mirror DeployCommand._versionFromZip: read version out of app.json.

@@ -175,8 +175,7 @@ class BuildCommand extends Command<int> {
     String distDir,
     bool minify,
   ) async {
-    final manifest =
-        jsonDecode(bundledManifestJson) as Map<String, dynamic>;
+    final manifest = jsonDecode(bundledManifestJson) as Map<String, dynamic>;
     final subpackages = manifest['subpackages'];
     if (subpackages is! List || subpackages.isEmpty) return;
 

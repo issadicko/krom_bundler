@@ -25,7 +25,10 @@ String terminalQr(String data) {
   final size = image.moduleCount + quiet * 2;
   bool dark(int x, int y) {
     final mx = x - quiet, my = y - quiet;
-    if (mx < 0 || my < 0 || mx >= image.moduleCount || my >= image.moduleCount) {
+    if (mx < 0 ||
+        my < 0 ||
+        mx >= image.moduleCount ||
+        my >= image.moduleCount) {
       return false; // quiet zone
     }
     return image.isDark(my, mx);

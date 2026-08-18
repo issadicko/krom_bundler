@@ -61,7 +61,8 @@ class PublishCommand extends Command<int> {
     }
     if (token == null || token.isEmpty) {
       Logger.error('Not authenticated.');
-      Logger.hint('Run "krom login --with-token" with a Personal Access Token.');
+      Logger.hint(
+          'Run "krom login --with-token" with a Personal Access Token.');
       return 1;
     }
 
@@ -108,7 +109,8 @@ class PublishCommand extends Command<int> {
       // 2. Resolve the app: the manifest appId when valid, else by slug
       //    (create-if-missing) — writing the UUID back into the manifest.
       Logger.step(1, steps, 'Resolving app "$slug"...');
-      final app = (await resolveProjectApp(client: client, manifest: manifest))!;
+      final app =
+          (await resolveProjectApp(client: client, manifest: manifest))!;
       Logger.keyValue('App', '${app.name} (${app.id})');
 
       // 3. Upload the version (lands as DRAFT). On a 409 with --bump, the
@@ -116,7 +118,8 @@ class PublishCommand extends Command<int> {
       var package = pkg;
       DeployedVersion deployed;
       try {
-        Logger.step(2, steps, 'Deploying version ${package.version} to $remoteUrl...');
+        Logger.step(
+            2, steps, 'Deploying version ${package.version} to $remoteUrl...');
         deployed = await client.deployPackage(
           appId: app.id,
           version: package.version,
@@ -141,10 +144,12 @@ class PublishCommand extends Command<int> {
           Logger.error('Cannot bump non-semver version "${package.version}".');
           return 1;
         }
-        Logger.warn('Version ${package.version} already exists — bumping to $next.');
+        Logger.warn(
+            'Version ${package.version} already exists — bumping to $next.');
         manifest.writeVersion(next);
         package = await _buildPackage(manifestPath, minify: minify);
-        Logger.step(2, steps, 'Deploying version ${package.version} to $remoteUrl...');
+        Logger.step(
+            2, steps, 'Deploying version ${package.version} to $remoteUrl...');
         deployed = await client.deployPackage(
           appId: app.id,
           version: package.version,
@@ -152,7 +157,8 @@ class PublishCommand extends Command<int> {
           filename: p.basename(package.path),
         );
       }
-      Logger.success('Published ${package.version} (${deployed.status ?? 'DRAFT'}).');
+      Logger.success(
+          'Published ${package.version} (${deployed.status ?? 'DRAFT'}).');
       ProjectCache(manifest.projectDir)
           .recordPublish(appId: app.id, version: package.version);
 
@@ -161,7 +167,8 @@ class PublishCommand extends Command<int> {
         await client.submitForReview(appId: app.id, versionId: deployed.id!);
         Logger.success('Submitted for review (IN_REVIEW).');
       } else if (submit) {
-        Logger.warn('Could not submit: the deploy response carried no version id.');
+        Logger.warn(
+            'Could not submit: the deploy response carried no version id.');
       }
 
       // 4. Optionally bind to super-apps (idempotent; a binding is app-level,
@@ -176,8 +183,8 @@ class PublishCommand extends Command<int> {
 
       return 0;
     } on BackendException catch (e) {
-      Logger.error(e.message +
-          (e.statusCode != null ? ' (${e.statusCode})' : ''));
+      Logger.error(
+          e.message + (e.statusCode != null ? ' (${e.statusCode})' : ''));
       if (e.body != null && e.body!.isNotEmpty) Logger.debug(e.body!);
       return 1;
     } on BundlerException catch (e) {
@@ -208,8 +215,8 @@ class PublishCommand extends Command<int> {
 
     final distDir = Directory(p.join(p.dirname(manifestPath), 'dist'));
     await distDir.create(recursive: true);
-    final file =
-        File(p.join(distDir.path, AssetPackager.packageFileName(slug, version)));
+    final file = File(
+        p.join(distDir.path, AssetPackager.packageFileName(slug, version)));
     await file.writeAsBytes(result.zipBytes, flush: true);
 
     return _Package(path: file.path, version: version, bytes: result.zipBytes);
@@ -219,8 +226,7 @@ class PublishCommand extends Command<int> {
   _Package _newestPackage(String manifestPath) {
     final dist = Directory(p.join(p.dirname(manifestPath), 'dist'));
     if (!dist.existsSync()) {
-      throw BundlerException(
-          'No dist/ found. Build first or drop --no-build.');
+      throw BundlerException('No dist/ found. Build first or drop --no-build.');
     }
     final zips = dist
         .listSync()

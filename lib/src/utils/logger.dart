@@ -54,7 +54,8 @@ class Logger {
       stdout.writeln('  ${_c(_accent, row)}');
     }
     final tagline = subtitle ?? 'Bundle and serve KromScript projects';
-    stdout.writeln('  ${_c(_dim, 'v$version'.padRight(10))}${_c(_dim, tagline)}');
+    stdout
+        .writeln('  ${_c(_dim, 'v$version'.padRight(10))}${_c(_dim, tagline)}');
     newline();
   }
 
@@ -159,11 +160,12 @@ class Logger {
     String? footer,
   }) {
     if (rows.isEmpty) return;
-    final keyWidth = rows.map((r) => r.$1.length).reduce((a, b) => a > b ? a : b);
-    final bodyWidth = rows
-        .map((r) => keyWidth + 2 + r.$2.length)
-        .followedBy([title.length + 2, if (footer != null) footer.length])
-        .reduce((a, b) => a > b ? a : b);
+    final keyWidth =
+        rows.map((r) => r.$1.length).reduce((a, b) => a > b ? a : b);
+    final bodyWidth = rows.map((r) => keyWidth + 2 + r.$2.length).followedBy([
+      title.length + 2,
+      if (footer != null) footer.length
+    ]).reduce((a, b) => a > b ? a : b);
 
     final head = '╭─ $title ${'─' * (bodyWidth - title.length - 1)}╮';
     newline();
@@ -176,7 +178,8 @@ class Logger {
           '  ${_c(color, '│')} $label $shown$padding ${_c(color, '│')}');
     }
     if (footer != null) {
-      stdout.writeln('  ${_c(color, '│')} ${_c(_dim, footer.padRight(bodyWidth))} ${_c(color, '│')}');
+      stdout.writeln(
+          '  ${_c(color, '│')} ${_c(_dim, footer.padRight(bodyWidth))} ${_c(color, '│')}');
     }
     stdout.writeln('  ${_c(color, '╰${'─' * (bodyWidth + 2)}╯')}');
     newline();

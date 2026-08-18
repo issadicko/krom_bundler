@@ -106,7 +106,8 @@ class KnownLibs {
     kKromLibDescriptors.forEach((pack, descriptor) {
       if (declaredSet.contains(pack)) return;
       for (final component in descriptor.components) {
-        if (_isCalled(source, component) && !_isDefinedLocally(source, component)) {
+        if (_isCalled(source, component) &&
+            !_isDefinedLocally(source, component)) {
           found[component] = pack;
         }
       }
@@ -136,11 +137,13 @@ class KnownLibs {
 
   /// `Nom(` — un appel, pas une sous-chaîne ni un accès à un membre.
   static bool _isCalled(String source, String name) =>
-      RegExp('(?<![A-Za-z0-9_.])${RegExp.escape(name)}\\s*\\(').hasMatch(source);
+      RegExp('(?<![A-Za-z0-9_.])${RegExp.escape(name)}\\s*\\(')
+          .hasMatch(source);
 
   /// `nom.` — l'usage d'un namespace.
   static bool _isDereferenced(String source, String name) =>
-      RegExp('(?<![A-Za-z0-9_.])${RegExp.escape(name)}\\s*\\.').hasMatch(source);
+      RegExp('(?<![A-Za-z0-9_.])${RegExp.escape(name)}\\s*\\.')
+          .hasMatch(source);
 
   /// `let nom` / `fn nom` — le développeur a défini ce nom lui-même.
   static bool _isDefinedLocally(String source, String name) => RegExp(

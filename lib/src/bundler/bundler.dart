@@ -92,6 +92,7 @@ class Bundler {
 
     await _collect(entryPath, [entryPath]);
     _checkScopes();
+    _checkGlobalNames();
     _emit();
 
     _sourceMap = BundleSourceMap(
@@ -233,6 +234,72 @@ class Bundler {
       }
     }
   }
+
+  /// Le paquet auquel appartient [absolutePath] : le nom de la dépendance qui
+  /// le contient, ou null pour les fichiers du projet lui-même.
+  String? _packageOf(String absolutePath) {
+    for (final entry in depRoots.entries) {
+      if (p.isWithin(entry.value, absolutePath)) return entry.key;
+    }
+    return null;
+  }
+
+  /// Refuse qu'un même nom du premier niveau du bundle soit posé par deux
+  /// paquets différents — le projet et une dépendance, ou deux dépendances.
+  ///
+  /// Le bundle est plat : un module importé sans alias y déverse ses
+  /// déclarations, et un module scopé y pose le nom de son alias. Entre deux
+  /// fichiers d'un MÊME paquet, la collision garde la règle historique (le
+  /// dernier écrit gagne) — leur auteur voit les deux et arbitre. Entre
+  /// paquets, personne ne voit les deux : la dépendance se met à lire la
+  /// valeur du projet sans que rien ne le signale, et c'est la lib qui a
+  /// l'air cassée. Mieux vaut refuser le bundle que livrer ça.
+  void _checkGlobalNames() {
+    if (depRoots.isEmpty) return;
+
+    // nom global -> (ce qu'il désigne, paquet qui l'a posé, fichier fautif)
+    final owners = <String, (String, String?, String)>{};
+
+    void claim(String name, String target, String claimant) {
+      final package = _packageOf(claimant);
+      final previous = owners[name];
+      if (previous == null) {
+        owners[name] = (target, package, claimant);
+        return;
+      }
+      // Même chose désignée (deux paquets qui aliasent le même module), ou
+      // même paquet des deux côtés : rien à arbitrer ici.
+      if (previous.$1 == target || previous.$2 == package) return;
+
+      throw BundlerException(
+        'Top-level name "$name" is claimed by two packages:\n'
+        '  - ${_relative(previous.$3)} (${_packageLabel(previous.$2)})\n'
+        '  - ${_relative(claimant)} (${_packageLabel(package)})\n'
+        '  Both land at the top level of the bundle, where the last one '
+        'silently wins. Rename yours, or import the module with `as` so it '
+        'keeps its own namespace.',
+      );
+    }
+
+    for (final module in _modules.values) {
+      // Un module à plat déverse ses déclarations dans la portée globale.
+      if (!module.isScoped) {
+        for (final export in module.surface.exports) {
+          claim(export, module.path, module.path);
+        }
+      }
+      // Un alias appartient au fichier qui l'a écrit, pas au module importé.
+      for (final import in module.imports) {
+        if (import.alias == null) continue;
+        final target =
+            p.absolute(_resolveImportPath(import.path, p.dirname(module.path)));
+        claim(import.alias!, target, module.path);
+      }
+    }
+  }
+
+  String _packageLabel(String? package) =>
+      package == null ? 'this project' : 'dependency "$package"';
 
   /// Write the collected modules out, wrapping the scoped ones.
   void _emit() {

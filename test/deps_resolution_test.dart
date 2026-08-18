@@ -162,6 +162,90 @@ void main() {
     });
   });
 
+  group('collisions de noms entre paquets', () {
+    Matcher refuse(String nom, String fragment) =>
+        throwsA(isA<BundlerException>()
+            .having((e) => e.message, 'message', contains('"$nom" is claimed'))
+            .having((e) => e.message, 'message', contains(fragment)));
+
+    test('le projet ne peut pas écraser un nom interne de la dépendance',
+        () async {
+      // Le cas silencieux : format.ks tire couleurs.ks à plat, ses noms
+      // atterrissent au premier niveau, et un homonyme du projet gagnait.
+      final dir = _project({
+        '.krom/deps/money/couleurs.ks': 'let VERT = "vert-de-la-lib"\n',
+        '.krom/deps/money/format.ks': '@use "./couleurs.ks"\n'
+            'fn couleur() { return VERT }\n',
+        'pages/home.ks': '@use "money/format" as fmt\n'
+            'let VERT = "rouge-du-projet"\n'
+            'fn probe() { return fmt.couleur() }\n',
+      });
+      await expectLater(_bundle(dir, 'pages/home.ks', depRoots: _money(dir)),
+          refuse('VERT', 'couleurs.ks'));
+    });
+
+    test('ni reprendre le nom sous lequel la dépendance aliase son module',
+        () async {
+      final dir = _project({
+        '.krom/deps/money/couleurs.ks': 'let VERT = "vert-de-la-lib"\n',
+        '.krom/deps/money/format.ks': '@use "./couleurs.ks" as c\n'
+            'fn couleur() { return c.VERT }\n',
+        'pages/home.ks': '@use "money/format" as fmt\n'
+            'let c = { VERT: "rouge-du-projet" }\n'
+            'fn probe() { return fmt.couleur() }\n',
+      });
+      await expectLater(_bundle(dir, 'pages/home.ks', depRoots: _money(dir)),
+          refuse('c', 'format.ks'));
+    });
+
+    test('deux dépendances ne peuvent pas poser le même nom', () async {
+      final dir = _project({
+        '.krom/deps/money/util.ks': 'let TAILLE = 1\n',
+        '.krom/deps/money/main.ks':
+            '@use "./util.ks"\nfn a() { return TAILLE }\n',
+        '.krom/deps/ui/util.ks': 'let TAILLE = 2\n',
+        '.krom/deps/ui/main.ks': '@use "./util.ks"\nfn b() { return TAILLE }\n',
+        'pages/home.ks': '@use "money" as m\n@use "ui" as u\n'
+            'fn probe() { return m.a() + u.b() }\n',
+      });
+      await expectLater(
+          _bundle(dir, 'pages/home.ks', depRoots: {
+            ..._money(dir),
+            'ui': p.join(dir.path, '.krom', 'deps', 'ui'),
+          }),
+          refuse('TAILLE', 'util.ks'));
+    });
+
+    test('le même alias pour le même module des deux côtés reste légal',
+        () async {
+      final dir = _project({
+        '.krom/deps/money/couleurs.ks': 'let VERT = "#0F8A3C"\n',
+        '.krom/deps/money/format.ks': '@use "./couleurs.ks" as couleurs\n'
+            'fn couleur() { return couleurs.VERT }\n',
+        'pages/home.ks': '@use "money/format" as fmt\n'
+            '@use "money/couleurs" as couleurs\n'
+            'fn probe() { return fmt.couleur() + "/" + couleurs.VERT }\n',
+      });
+      final bundle = await _bundle(dir, 'pages/home.ks', depRoots: _money(dir));
+      expect(await _run(bundle), '#0F8A3C/#0F8A3C');
+    });
+
+    test('entre fichiers du projet, la règle historique tient', () async {
+      // Deux fichiers à plat du MÊME paquet : le dernier gagne, comme avant.
+      // Leur auteur voit les deux — rien à arbitrer à sa place.
+      final dir = _project({
+        '.krom/deps/money/main.ks': 'fn devise() { return "XOF" }\n',
+        'pages/a.ks': 'let T = "a"\n',
+        'pages/b.ks': 'let T = "b"\n',
+        'pages/home.ks': '@use "money" as money\n'
+            '@use "./a.ks"\n@use "./b.ks"\n'
+            'fn probe() { return T + money.devise() }\n',
+      });
+      final bundle = await _bundle(dir, 'pages/home.ks', depRoots: _money(dir));
+      expect(await _run(bundle), 'bXOF');
+    });
+  });
+
   group('ManifestBundler et l\'état des dépendances', () {
     Future<Map<String, dynamic>> bundleProject(Directory dir) =>
         ManifestBundler().bundleProjectToMap(p.join(dir.path, 'manifest.json'));

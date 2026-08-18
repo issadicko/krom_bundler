@@ -1,3 +1,17 @@
+## 0.7.1
+
+### `authorizeUrl` quitte le manifeste compilé
+
+Le champ venait du vocabulaire TCMPP et était recopié dans `app.json` depuis le
+premier commit du bundler. Rien ne l'a jamais lu : ni le SDK, ni Krom Go, ni
+l'extension, ni le backend, et aucun validateur ne le connaissait. Un champ
+déclarable que rien n'applique finit par être écrit par quelqu'un qui croit
+qu'il sert.
+
+Le manifeste source n'est pas concerné : un projet qui déclare `authorizeUrl`
+reste valide, c'est le bundle qui cesse de le transporter. Rien à changer dans
+vos mini-apps.
+
 ## 0.7.0
 
 ### Une dépendance est étanche

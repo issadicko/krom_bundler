@@ -24,6 +24,7 @@ class KromImport {
 /// reprend un ferait disparaître le namespace de l'hôte pour tout le bundle.
 const kHostGlobals = <String>{
   'args',
+  'clipboard',
   'device',
   'nav',
   'request',

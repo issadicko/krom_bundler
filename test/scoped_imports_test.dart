@@ -194,6 +194,21 @@ void main() {
           reserved: kHostGlobals);
     });
 
+    test('clipboard est un namespace de l\'hôte comme les autres', () async {
+      // Ajouté au SDK 1.10.0 : sans lui dans kHostGlobals, l'extension
+      // soulignait l'alias que le build acceptait, et le namespace
+      // disparaissait à l'exécution.
+      final dir = _project({
+        'utils/presse.ks': 'let T = 1\n',
+        'pages/home.ks': '@use "../utils/presse.ks" as clipboard\n'
+            'fn probe() { return clipboard.T }\n',
+      });
+
+      await expectRefus(dir, 'pages/home.ks',
+          contains('already a widget or a host namespace'),
+          reserved: kHostGlobals);
+    });
+
     test('un fichier ne peut pas emprunter l\'alias d\'un autre', () async {
       // `home.ks` n'importe pas la palette, mais le bundle étant plat, l'alias
       // y serait résolu quand même. C'est précisément ce qui doit être refusé.

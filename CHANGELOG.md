@@ -1,3 +1,16 @@
+## 0.7.2
+
+### `clipboard` est un namespace de l'hôte
+
+Le SDK 1.10.0 ajoute `clipboard.write` et `clipboard.read`. Le build ne
+réservait pas ce nom : `@use "presse.ks" as clipboard` passait la compilation
+et faisait disparaître le namespace pour tout le bundle, à l'exécution et sans
+un mot. L'extension VSCode, elle, le refusait déjà — l'éditeur soulignait donc
+une erreur que le build acceptait.
+
+Rien à changer dans vos projets : si l'un d'eux utilise `clipboard` comme
+alias, le build vous le dira maintenant, en nommant le fichier.
+
 ## 0.7.1
 
 ### `authorizeUrl` quitte le manifeste compilé

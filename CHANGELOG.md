@@ -1,3 +1,25 @@
+## 0.8.0
+
+### `window.backgroundColor`
+
+Le SDK 1.13.0 lit le fond de la mini-app au manifeste : c'est la couleur
+visible là où elle ne peint rien, à la place du fond transparent qui laissait
+passer le noir du conteneur sur les téléphones lents.
+
+```json
+{
+  "window": { "backgroundColor": "#0B0C0E" }
+}
+```
+
+Le validateur accepte la clé et n'admet qu'une couleur opaque `#RRGGBB` :
+`white`, `#fff` ou `#800B0C0E` font échouer le build en nommant la valeur
+reçue. Un fond semi-transparent ramènerait exactement le noir qu'il doit
+couvrir.
+
+Rien à changer dans vos projets : sans la clé, le SDK prend le fond du thème
+de l'hôte.
+
 ## 0.7.2
 
 ### `clipboard` est un namespace de l'hôte

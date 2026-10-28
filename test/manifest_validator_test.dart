@@ -28,6 +28,7 @@ void main() {
             'navigationBarTitleText': 'App',
             'navigationBarBackgroundColor': '#ffffff',
             'navigationBarTextStyle': 'black',
+            'backgroundColor': '#0b0c0e',
           },
           'tabBar': {
             'list': [
@@ -72,6 +73,18 @@ void main() {
           throwsA(isA<BundlerException>().having((e) => e.message, 'message',
               contains('navigationBarBackgroundColor'))),
         );
+      });
+
+      test('rejects a background color that is not opaque #RRGGBB', () {
+        for (final color in ['white', '#fff', '#800b0c0e', 12]) {
+          final m = baseManifest()..['window'] = {'backgroundColor': color};
+          expect(
+            () => ManifestValidator.validate(m),
+            throwsA(isA<BundlerException>().having((e) => e.message,
+                'message', contains('window.backgroundColor'))),
+            reason: '$color',
+          );
+        }
       });
 
       test('rejects unknown window property', () {

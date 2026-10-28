@@ -66,6 +66,7 @@ class ManifestValidator {
       'navigationBarTitleText',
       'navigationBarBackgroundColor',
       'navigationBarTextStyle',
+      'backgroundColor',
     };
     for (final key in window.keys) {
       if (!allowed.contains(key)) {
@@ -87,6 +88,16 @@ class ManifestValidator {
         errors.add('"window.navigationBarBackgroundColor" must be a hex '
             'color like "#ffffff" (got "$bg").');
       }
+    }
+
+    // Le fond de la mini-app là où elle n'a encore rien peint : opaque, sinon
+    // le noir du conteneur transparaît dessous.
+    final background = window['backgroundColor'];
+    if (background != null &&
+        (background is! String ||
+            !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(background))) {
+      errors.add('"window.backgroundColor" must be an opaque hex color like '
+          '"#ffffff" (got "$background").');
     }
 
     final textStyle = window['navigationBarTextStyle'];

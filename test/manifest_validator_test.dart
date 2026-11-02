@@ -54,6 +54,38 @@ void main() {
       expect(() => ManifestValidator.validate(m), returnsNormally);
     });
 
+    group('id', () {
+      test('accepts a slug, an init-style name and a reverse-DNS id', () {
+        for (final id in ['wallet', 'my_app-2', 'com.example.app', '2048']) {
+          expect(
+            () => ManifestValidator.validate(baseManifest()..['id'] = id),
+            returnsNormally,
+            reason: id,
+          );
+        }
+      });
+
+      test('rejects an id that would leave the package cache', () {
+        // The slug becomes a folder of the package cache on the device.
+        const unsafe = ['..', '.', 'a/b', r'a\b', 'c:', 'a b', '', '.hidden'];
+        for (final id in unsafe) {
+          expect(
+            () => ManifestValidator.validate(baseManifest()..['id'] = id),
+            throwsA(isA<BundlerException>()
+                .having((e) => e.message, 'message', contains('"id"'))),
+            reason: id,
+          );
+        }
+      });
+
+      test('rejects a non-string id', () {
+        expect(
+          () => ManifestValidator.validate(baseManifest()..['id'] = 42),
+          throwsA(isA<BundlerException>()),
+        );
+      });
+    });
+
     group('window', () {
       test('rejects bad navigationBarTextStyle', () {
         final m = baseManifest()

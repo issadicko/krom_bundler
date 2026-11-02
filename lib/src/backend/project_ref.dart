@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+
 import '../utils/logger.dart';
 import 'backend_client.dart';
 
@@ -88,7 +90,11 @@ class ManifestRef {
 /// Resolves the backend app for [manifest], self-healing the committed
 /// `appId`:
 ///
-/// 1. A manifest `appId` is trusted first (one `GET /apps/{id}`).
+/// 1. A manifest `appId` is trusted first (one `GET /apps/{id}`) — as long as
+///    that app's slug is the manifest `id`. A renamed `id`, or an `appId`
+///    copied from another project, throws: the version would be published
+///    under the other app's slug, and the SDK refuses a package whose `id`
+///    differs from the slug it is served under.
 /// 2. When it is absent or stale — the backend answers 404 for unknown ids
 ///    AND for apps of other tenants — fall back to the slug: find (and with
 ///    [createIfMissing], create) the app, then write the fresh UUID back into
@@ -109,7 +115,15 @@ Future<BackendApp?> resolveProjectApp({
   final declared = manifest.appId;
   if (declared != null) {
     final app = await client.getApp(declared);
-    if (app != null) return app;
+    if (app != null) {
+      if (app.slug != slug) {
+        throw BackendException(
+            'manifest.json "id" is "$slug", but its appId $declared is the '
+            'app "${app.slug}" on the backend. Restore "id": "${app.slug}", '
+            'or remove "appId" to publish "$slug" as a new app.');
+      }
+      return app;
+    }
     Logger.warn('appId $declared is unknown to this backend — '
         're-linking via slug "$slug".');
   }
@@ -131,4 +145,38 @@ Future<BackendApp?> resolveProjectApp({
     Logger.info('Wrote appId ${app.id} to ${manifest.path}.');
   }
   return app;
+}
+
+/// Throws when the package [zipBytes] would not open once published to [app].
+///
+/// The SDK (kmini_program ≥ 1.15.0) loads a mini-app under its slug and
+/// refuses a package whose `app.json` declares another `id`: that id names the
+/// mini-app's storage and consents on the device. Checked on the package
+/// itself, since `--no-build` or `krom deploy -f` can send an older one.
+void ensurePackageMatchesApp(BackendApp app, List<int> zipBytes) {
+  final id = _packageManifest(zipBytes)?['id']?.toString();
+  if (id == null) {
+    throw BackendException('The package has no app.json "id". Rebuild it '
+        'with "krom build".');
+  }
+  if (id != app.slug) {
+    throw BackendException('The package declares "id": "$id", but would be '
+        'published as the app "${app.slug}". The SDK refuses to open a '
+        'package whose id differs from its slug.');
+  }
+}
+
+/// The decoded `app.json` of a package ZIP, or null when it has none.
+Map<String, dynamic>? _packageManifest(List<int> zipBytes) {
+  try {
+    for (final f in ZipDecoder().decodeBytes(zipBytes)) {
+      if (f.isFile && f.name == 'app.json') {
+        final json = jsonDecode(utf8.decode(f.content as List<int>));
+        return json is Map<String, dynamic> ? json : null;
+      }
+    }
+  } catch (_) {
+    // A corrupt archive has no readable manifest.
+  }
+  return null;
 }

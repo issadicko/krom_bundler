@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:krom_bundler/src/backend/backend_client.dart';
@@ -171,6 +172,68 @@ void main() {
       );
       expect(app, isNull);
       expect(ManifestRef.load(path).appId, isNull);
+    });
+
+    test('refuses an appId whose app has another slug (renamed id)',
+        () async {
+      // The id was renamed while appId still points at "wallet": publishing
+      // would send a "purse" package under the "wallet" slug, which the SDK
+      // refuses to open.
+      final client = clientWith(MockClient((req) async => http.Response(
+          jsonEncode({'id': _uuid, 'slug': 'wallet', 'name': 'Wallet'}),
+          200)));
+      final path =
+          writeManifest({'id': 'purse', 'appId': _uuid, 'name': 'Purse'});
+
+      await expectLater(
+        resolveProjectApp(client: client, manifest: ManifestRef.load(path)),
+        throwsA(isA<BackendException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('"purse"'), contains('"wallet"'),
+                contains('remove "appId"')))),
+      );
+      expect(ManifestRef.load(path).appId, _uuid, reason: 'left untouched');
+    });
+  });
+
+  group('ensurePackageMatchesApp', () {
+    const wallet = BackendApp(id: _uuid, slug: 'wallet', name: 'Wallet');
+
+    List<int> zipWith(Map<String, dynamic>? manifest) {
+      final archive = Archive();
+      if (manifest != null) {
+        final bytes = utf8.encode(jsonEncode(manifest));
+        archive.addFile(ArchiveFile('app.json', bytes.length, bytes));
+      }
+      final payload = utf8.encode('x');
+      archive.addFile(ArchiveFile('assets/x.txt', payload.length, payload));
+      return ZipEncoder().encode(archive)!;
+    }
+
+    test('accepts a package whose id is the app slug', () {
+      expect(
+        () => ensurePackageMatchesApp(
+            wallet, zipWith({'id': 'wallet', 'version': '1.0.0'})),
+        returnsNormally,
+      );
+    });
+
+    test('refuses a package that declares another id', () {
+      expect(
+        () => ensurePackageMatchesApp(
+            wallet, zipWith({'id': 'victim-wallet', 'version': '1.0.0'})),
+        throwsA(isA<BackendException>().having(
+            (e) => e.message, 'message', contains('"victim-wallet"'))),
+      );
+    });
+
+    test('refuses a package without app.json, or without id', () {
+      expect(() => ensurePackageMatchesApp(wallet, zipWith(null)),
+          throwsA(isA<BackendException>()));
+      expect(
+          () => ensurePackageMatchesApp(wallet, zipWith({'version': '1.0.0'})),
+          throwsA(isA<BackendException>()));
     });
   });
 }

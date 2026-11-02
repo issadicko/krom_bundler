@@ -1,3 +1,31 @@
+## 0.9.0
+
+### Une publication ne part plus sous le slug d'une autre app
+
+`krom publish` faisait d'abord confiance à l'`appId` du manifeste. Si l'`id`
+avait été renommé, ou si l'`appId` venait d'un autre projet, la version partait
+sous le slug de l'app trouvée par `appId`, avec un `app.json` qui déclarait un
+autre `id`. Le SDK 1.15.0 refuse d'ouvrir un tel paquet : l'erreur n'arrivait
+qu'à l'ouverture, chez les utilisateurs.
+
+La CLI s'arrête maintenant dès la publication, en nommant les deux valeurs :
+
+- `krom publish`, `krom link`, `krom bind`, `krom bindings` et `krom dev`
+  refusent un `appId` dont l'app porte un autre slug que l'`id` du manifeste.
+  Remettez l'`id` d'origine, ou retirez `appId` pour publier l'app comme une
+  nouvelle.
+- `krom publish` et `krom deploy` vérifient aussi le paquet envoyé (celui de
+  `--no-build` ou de `-f`) : son `app.json` doit déclarer le slug de l'app
+  visée.
+
+### L'`id` du manifeste est validé au build
+
+L'`id` devient le slug publié et un dossier du cache des paquets sur
+l'appareil. Le build refuse donc un `id` qui ne commence pas par une lettre ou
+un chiffre, ou qui contient autre chose que des lettres, des chiffres, `.`,
+`-` et `_` : `..`, `a/b` ou `mon app` font échouer le build. Un id en notation
+inversée (`com.example.app`) reste valide.
+
 ## 0.8.0
 
 ### `window.backgroundColor`

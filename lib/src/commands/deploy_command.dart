@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart' as p;
+import '../backend/backend_client.dart';
 import '../backend/project_ref.dart';
 import '../utils/config.dart';
 import '../utils/logger.dart';
@@ -80,12 +81,13 @@ class DeployCommand extends Command<int> {
 
     // The .zip is the signed-ready package: upload as multipart/form-data with
     // a "package" file part and a "version" text part.
-    return _deployPackage(uri, file, token, remoteUrl);
+    return _deployPackage(uri, appId, file, token, remoteUrl);
   }
 
   /// Upload the ZIP package via multipart/form-data.
   Future<int> _deployPackage(
     Uri uri,
+    String appId,
     File zip,
     String token,
     String remoteUrl,
@@ -97,6 +99,26 @@ class DeployCommand extends Command<int> {
           'Could not read "version" from app.json inside the package.');
       Logger.hint('Rebuild with "krom build" to regenerate a valid package.');
       return 1;
+    }
+
+    // The package must open under the slug of the app it lands in.
+    final client = BackendClient(baseUrl: remoteUrl, token: token);
+    try {
+      final app = await client.getApp(appId);
+      if (app == null) {
+        Logger.error('App $appId not found on $remoteUrl.');
+        return 1;
+      }
+      ensurePackageMatchesApp(app, bytes);
+    } on BackendException catch (e) {
+      Logger.error(
+          e.message + (e.statusCode != null ? ' (${e.statusCode})' : ''));
+      return 1;
+    } catch (e) {
+      Logger.error('Connection failed: $e');
+      return 1;
+    } finally {
+      client.close();
     }
 
     Logger.step(1, 1, 'Deploying version $version to $remoteUrl...');

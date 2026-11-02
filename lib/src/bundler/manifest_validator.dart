@@ -38,6 +38,7 @@ class ManifestValidator {
         ((manifest['pages'] as Map?)?.keys.map((e) => e.toString()).toSet() ??
             const <String>{});
 
+    _validateId(manifest['id'], errors);
     _validateWindow(manifest['window'], errors);
     _validateTabBar(manifest['tabBar'], pages, errors);
     _validatePermissions(manifest, errors);
@@ -50,6 +51,21 @@ class ManifestValidator {
       final bullets = errors.map((e) => '  - $e').join('\n');
       throw BundlerException('Manifest validation failed (${errors.length} '
           'error${errors.length == 1 ? '' : 's'}):\n$bullets');
+    }
+  }
+
+  // --- id -------------------------------------------------------------------
+
+  /// The id becomes the published slug and a folder of the package cache on
+  /// the device: `..`, a slash or a colon there would point outside it. A
+  /// reverse-DNS id (`com.example.app`) stays valid.
+  static final _idPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
+
+  static void _validateId(dynamic id, List<String> errors) {
+    if (id == null) return;
+    if (id is! String || !_idPattern.hasMatch(id)) {
+      errors.add('"id" must start with a letter or a digit and contain only '
+          'letters, digits, ".", "-" and "_" (got "$id").');
     }
   }
 

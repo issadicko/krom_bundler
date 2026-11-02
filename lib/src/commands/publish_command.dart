@@ -112,6 +112,7 @@ class PublishCommand extends Command<int> {
       final app =
           (await resolveProjectApp(client: client, manifest: manifest))!;
       Logger.keyValue('App', '${app.name} (${app.id})');
+      ensurePackageMatchesApp(app, pkg.bytes);
 
       // 3. Upload the version (lands as DRAFT). On a 409 with --bump, the
       //    patch version is bumped in the manifest, rebuilt and retried once.

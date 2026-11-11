@@ -509,18 +509,24 @@ class Bundler {
   /// [sourceMap] situe les erreurs dans les fichiers du projet. Ne la passer
   /// que si [bundledSource] est bien la concaténation brute : optimisation et
   /// minification réécrivent le texte, et la table ne vaut plus rien.
+  ///
+  /// [pageGlobals] à false valide comme le runtime charge un worker : sans
+  /// `theme` ni `args`.
   Future<void> validate(
     String bundledSource, {
     List<String> customWidgets = const [],
     String modulePrelude = '',
     BundleSourceMap? sourceMap,
+    bool pageGlobals = true,
   }) async {
     final engine = KSEngine();
     // Stub host-injected globals so top-level code that reads them (the
     // `theme` palette idiom, or `args`) validates instead of throwing
     // "undefined variable". The runtime binds the real values.
-    engine.setVariable('theme', _defaultThemeVars);
-    engine.setVariable('args', null);
+    if (pageGlobals) {
+      engine.setVariable('theme', _defaultThemeVars);
+      engine.setVariable('args', null);
+    }
 
     // Stub declared host custom widgets as no-op builders. Prepended for the
     // validation load only — the emitted source is unchanged.

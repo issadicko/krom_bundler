@@ -1,3 +1,49 @@
+## Non publié
+
+### Les workers
+
+Un worker exécute une fonction lourde d'une mini-app dans un isolate, hors du
+thread de l'interface. Le manifeste les déclare comme ses pages :
+
+```json
+{
+  "workers": { "transactions": { "source": "workers/transactions.ks" } }
+}
+```
+
+La clé est un identifiant (`[A-Za-z_][A-Za-z0-9_]*`), la valeur un objet
+`{ "source": "<fichier>.ks" }` et rien d'autre. Le fichier doit exister, comme
+pour une page.
+
+Chaque worker est bundlé comme une page — `@use`, dépendances scellées, source
+map en `krom dev` — et sort sous `workers.<nom>.script` dans
+`dist/manifest.json`, dans le paquet de `deploy` et `publish`, et dans ce que
+`krom dev` pousse à l'appareil. Modifier un worker, ou un fichier qu'il importe,
+relance le build comme pour une page. L'optimiseur n'élague pas le code d'un
+worker : ses fonctions ne sont appelées que depuis les pages.
+
+Le build refuse, en nommant `fichier:ligne:colonne` :
+
+- dans tout ce qui finit dans le bundle d'un worker, dépendances comprises, un
+  nom que seule une page reçoit : `storage`, `request`, `nav`, `ui`, `timer`,
+  `device`, `args`, `clipboard`, `theme`, les composants et modules des libs,
+  les `customWidgets` du manifeste ;
+- dans un worker, `worker.run` et `worker.cancel` : seul `worker.progress` y
+  existe ;
+- dans une page ou un composant, `worker.run("<worker>.<fonction>", …)` dont la
+  cible littérale n'a pas de point, vise un worker non déclaré ou une fonction
+  que ce worker ne pose pas au premier niveau. Une cible calculée n'est pas
+  vérifiée ;
+- dans une page ou un composant, `worker.progress`.
+
+Un nom que le fichier lie lui-même (`let storage = …`, un paramètre `worker`)
+n'est jamais signalé.
+
+`worker` rejoint les namespaces de l'hôte : il ne peut plus servir d'alias
+d'import ni de nom de dépendance.
+
+Rien à changer dans un projet sans workers : son bundle est identique.
+
 ## 0.9.0
 
 ### Une publication ne part plus sous le slug d'une autre app

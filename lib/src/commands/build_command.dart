@@ -133,11 +133,13 @@ class BuildCommand extends Command<int> {
       final manifest = await _readManifest(manifestPath);
       final pageCount = (manifest['pages'] as Map?)?.length ?? 0;
       final componentCount = (manifest['components'] as Map?)?.length ?? 0;
+      final workerCount = (manifest['workers'] as Map?)?.length ?? 0;
 
       Logger.buildSummary(
         duration: timer.elapsed,
         pages: pageCount,
         components: componentCount,
+        workers: workerCount,
         outputSize: outFile.lengthSync(),
         outputPath: output,
       );

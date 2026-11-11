@@ -32,6 +32,7 @@ const kHostGlobals = <String>{
   'theme',
   'timer',
   'ui',
+  'worker',
 };
 
 final _importPattern = RegExp(
@@ -178,10 +179,10 @@ ModuleSurface analyzeSource(String source) {
     }
   }
 
-  final collector = _FreeNameCollector()..program(program);
+  final reads = freeReads(program);
   return ModuleSurface(
     exports: exports,
-    freeNames: collector.free,
+    freeNames: {for (final name in reads.names) name.value},
   );
 }
 
@@ -190,47 +191,104 @@ class ModuleParseException implements Exception {
   ModuleParseException(this.errors);
 }
 
+/// `objet.membre` lu sur un nom que le programme ne lie pas — un namespace de
+/// l'hôte, le plus souvent.
+class FreeMember {
+  const FreeMember(this.object, this.member, this.call);
+
+  final Identifier object;
+  final Identifier member;
+
+  /// L'appel dont cet accès est la fonction (`worker.run(…)`), ou null pour
+  /// une simple lecture.
+  final CallExpr? call;
+}
+
+/// Ce qu'un programme lit sans le lier lui-même, dans l'ordre du source.
+class FreeReads {
+  const FreeReads({required this.names, required this.members});
+
+  /// Chaque occurrence d'un identifiant libre, avec sa position.
+  final List<Identifier> names;
+
+  /// Chaque accès `nom.membre` dont le `nom` est libre.
+  final List<FreeMember> members;
+}
+
+/// Les lectures libres de [program].
+FreeReads freeReads(Program program) {
+  final collector = _FreeNameCollector()..program(program);
+  return FreeReads(names: collector.names, members: collector.members);
+}
+
 /// Collects the identifiers a program reads without binding them.
 ///
-/// Scope tracking stays deliberately coarse — a name bound anywhere in an
-/// enclosing block counts as bound. The result feeds a "did you import this
-/// alias?" check, where a false negative merely lets a name through and the
-/// engine still resolves it as it always did.
+/// KromScript n'ouvre de portée qu'à l'appel d'une fonction : un `let` écrit
+/// dans un `if` ou une boucle vaut pour toute la fonction. Un nom lié n'importe
+/// où dans une fonction englobante compte donc comme lié, même lu avant sa
+/// déclaration. L'approximation penche du côté sûr : un nom laissé passer à
+/// tort est résolu par le moteur comme il l'a toujours été.
 class _FreeNameCollector {
-  final Set<String> free = {};
-  final List<Set<String>> _scopes = [{}];
+  final List<Identifier> names = [];
+  final List<FreeMember> members = [];
+  final List<Set<String>> _scopes = [];
 
   void program(Program node) {
-    // Top-level declarations are hoisted for this purpose: a file may call a
-    // function it declares further down.
-    for (final statement in node.statements) {
+    _enterFunction(const [], node.statements);
+    _statements(node.statements);
+    _scopes.removeLast();
+  }
+
+  bool _isBound(String name) => _scopes.any((scope) => scope.contains(name));
+
+  void _enterFunction(List<Identifier> parameters, List<Statement> body) {
+    final scope = {for (final parameter in parameters) parameter.value};
+    _declare(body, scope);
+    _scopes.add(scope);
+  }
+
+  /// Les noms que [statements] lient dans la fonction qui les contient, sans
+  /// descendre dans les fonctions imbriquées. Une affectation à un nom inconnu
+  /// le crée dans la fonction courante, comme un `let`.
+  void _declare(List<Statement> statements, Set<String> into) {
+    for (final statement in statements) {
       switch (statement) {
         case VarDecl():
-          _bind(statement.name.value);
+          into.add(statement.name.value);
         case FunctionDeclaration():
-          _bind(statement.name.value);
+          into.add(statement.name.value);
+        case ExpressionStatement(
+            expression: Assignment(left: Identifier(:final value))
+          ):
+          into.add(value);
+        case IfStatement():
+          _declare(statement.consequence.statements, into);
+          if (statement.alternative != null) {
+            _declare(statement.alternative!.statements, into);
+          }
+        case BlockStatement():
+          _declare(statement.statements, into);
+        case ForStatement():
+          into.add(statement.variable.value);
+          _declare(statement.body.statements, into);
+        case WhileStatement():
+          _declare(statement.body.statements, into);
         default:
           break;
       }
     }
-    for (final statement in node.statements) {
+  }
+
+  void _statements(List<Statement> statements) {
+    for (final statement in statements) {
       _statement(statement);
     }
   }
 
-  void _bind(String name) => _scopes.last.add(name);
-
-  bool _isBound(String name) => _scopes.any((scope) => scope.contains(name));
-
-  void _push() => _scopes.add({});
-  void _pop() => _scopes.removeLast();
-
-  void _block(BlockStatement node) {
-    _push();
-    for (final statement in node.statements) {
-      _statement(statement);
-    }
-    _pop();
+  void _function(List<Identifier> parameters, BlockStatement body) {
+    _enterFunction(parameters, body.statements);
+    _statements(body.statements);
+    _scopes.removeLast();
   }
 
   void _statement(Statement? node) {
@@ -239,39 +297,34 @@ class _FreeNameCollector {
         return;
       case VarDecl():
         _expression(node.value);
-        _bind(node.name.value);
       case FunctionDeclaration():
-        _bind(node.name.value);
-        _push();
-        for (final parameter in node.parameters) {
-          _bind(parameter.value);
-        }
-        for (final statement in node.body.statements) {
-          _statement(statement);
-        }
-        _pop();
+        _function(node.parameters, node.body);
       case ExpressionStatement():
         _expression(node.expression);
       case IfStatement():
         _expression(node.condition);
-        _block(node.consequence);
-        if (node.alternative != null) _block(node.alternative!);
+        _statements(node.consequence.statements);
+        if (node.alternative != null) {
+          _statements(node.alternative!.statements);
+        }
       case BlockStatement():
-        _block(node);
+        _statements(node.statements);
       case ReturnStatement():
         _expression(node.value);
       case ForStatement():
         _expression(node.iterable);
-        _push();
-        _bind(node.variable.value);
-        for (final statement in node.body.statements) {
-          _statement(statement);
-        }
-        _pop();
+        _statements(node.body.statements);
       case WhileStatement():
         _expression(node.condition);
-        _block(node.body);
+        _statements(node.body.statements);
     }
+  }
+
+  void _member(Expression object, Identifier member, CallExpr? call) {
+    if (object is Identifier && !_isBound(object.value)) {
+      members.add(FreeMember(object, member, call));
+    }
+    _expression(object);
   }
 
   void _expression(Expression? node) {
@@ -279,9 +332,10 @@ class _FreeNameCollector {
       case null:
         return;
       case Identifier():
-        if (!_isBound(node.value)) free.add(node.value);
+        if (!_isBound(node.value)) names.add(node);
       case Assignment():
-        _expression(node.left);
+        // `x = …` écrit x, il ne le lit pas.
+        if (node.left is! Identifier) _expression(node.left);
         _expression(node.value);
       case StringTemplate():
         node.parts.forEach(_expression);
@@ -307,20 +361,20 @@ class _FreeNameCollector {
         _expression(node.defaultValue);
       // The property side of `a.b` is a member name, not a variable.
       case PropertyAccessExpr():
-        _expression(node.obj);
+        _member(node.obj, node.property, null);
       case SafeAccessExpr():
-        _expression(node.obj);
+        _member(node.obj, node.property, null);
       case FunctionLiteral():
-        _push();
-        for (final parameter in node.parameters) {
-          _bind(parameter.value);
-        }
-        for (final statement in node.body.statements) {
-          _statement(statement);
-        }
-        _pop();
+        _function(node.parameters, node.body);
       case CallExpr():
-        _expression(node.function);
+        switch (node.function) {
+          case PropertyAccessExpr(:final obj, :final property):
+            _member(obj, property, node);
+          case SafeAccessExpr(:final obj, :final property):
+            _member(obj, property, node);
+          default:
+            _expression(node.function);
+        }
         node.arguments.forEach(_expression);
       default:
         break;

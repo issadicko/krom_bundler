@@ -191,6 +191,7 @@ class Logger {
     required Duration duration,
     required int pages,
     int? components,
+    int? workers,
     int? outputSize,
     String? outputPath,
   }) {
@@ -200,6 +201,7 @@ class Logger {
         ('Duration', formatDuration(duration)),
         ('Pages', '$pages'),
         if (components != null && components > 0) ('Components', '$components'),
+        if (workers != null && workers > 0) ('Workers', '$workers'),
         if (outputSize != null) ('Output size', formatSize(outputSize)),
         if (outputPath != null) ('Output', outputPath),
       ],

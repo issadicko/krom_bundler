@@ -291,6 +291,77 @@ void main() {
       });
     });
 
+    group('workers', () {
+      Matcher fails(String message) => throwsA(isA<BundlerException>()
+          .having((e) => e.message, 'message', contains(message)));
+
+      test('accepts a name mapped to { source: <file>.ks }', () {
+        final m = baseManifest()
+          ..['workers'] = {
+            'transactions': {'source': 'workers/transactions.ks'},
+            '_stats2': {'source': 'stats.ks'},
+          };
+        expect(() => ManifestValidator.validate(m), returnsNormally);
+      });
+
+      test('rejects anything but an object', () {
+        final m = baseManifest()..['workers'] = ['workers/a.ks'];
+        expect(() => ManifestValidator.validate(m),
+            fails('"workers" must be an object'));
+      });
+
+      test('rejects a name that is not an identifier', () {
+        for (final name in const ['my-worker', '1stats', 'a.b', '']) {
+          final m = baseManifest()
+            ..['workers'] = {
+              name: {'source': 'workers/a.ks'}
+            };
+          expect(() => ManifestValidator.validate(m),
+              fails('"workers.$name" is not a valid worker name'),
+              reason: name);
+        }
+      });
+
+      test('rejects the bare-path form', () {
+        final m = baseManifest()..['workers'] = {'stats': 'workers/stats.ks'};
+        expect(() => ManifestValidator.validate(m),
+            fails('"workers.stats" must be an object'));
+      });
+
+      test('requires a .ks source and nothing else', () {
+        final missing = baseManifest()
+          ..['workers'] = {'stats': <String, dynamic>{}};
+        expect(() => ManifestValidator.validate(missing),
+            fails('"workers.stats.source" is required.'));
+
+        for (final source in const [42, 'workers/stats.js']) {
+          final m = baseManifest()
+            ..['workers'] = {
+              'stats': {'source': source}
+            };
+          expect(() => ManifestValidator.validate(m),
+              fails('"workers.stats.source" must be the path of a .ks file'),
+              reason: '$source');
+        }
+
+        final extra = baseManifest()
+          ..['workers'] = {
+            'stats': {'source': 'workers/stats.ks', 'name': 'Stats'}
+          };
+        expect(() => ManifestValidator.validate(extra),
+            fails('"workers.stats.name" is not a recognised property'));
+      });
+
+      test('"worker" is a host namespace, not a dependency name', () {
+        final m = baseManifest()
+          ..['dependencies'] = {
+            'worker': {'git': 'https://git.example/w.git', 'ref': 'v1'}
+          };
+        expect(() => ManifestValidator.validate(m),
+            fails('collides with the "worker" host namespace'));
+      });
+    });
+
     test('aggregates multiple errors in one exception', () {
       final m = baseManifest()
         ..['window'] = {'navigationBarTextStyle': 'blue'}

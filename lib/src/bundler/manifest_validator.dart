@@ -46,6 +46,7 @@ class ManifestValidator {
     _validateSubpackages(
         manifest['subpackages'] ?? manifest['subPackages'], pages, errors);
     _validateDependencies(manifest['dependencies'], errors);
+    _validateWorkers(manifest['workers'], errors);
 
     if (errors.isNotEmpty) {
       final bullets = errors.map((e) => '  - $e').join('\n');
@@ -397,6 +398,53 @@ class ManifestValidator {
           errors.add('"$where.path" must be a relative path inside the '
               'repository (no leading "/", no "..").');
         }
+      }
+    }
+  }
+
+  // --- workers --------------------------------------------------------------
+
+  /// Une page vise `worker.run("<nom>.<fonction>")` : le runtime coupe au
+  /// premier point, un nom n'en contient donc pas.
+  static final _workerNamePattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
+
+  static void _validateWorkers(dynamic workers, List<String> errors) {
+    if (workers == null) return;
+    if (workers is! Map) {
+      errors.add('"workers" must be an object mapping a name to '
+          '{ "source": "<file>.ks" }.');
+      return;
+    }
+
+    for (final entry in workers.entries) {
+      final name = entry.key.toString();
+      final where = 'workers.$name';
+
+      if (!_workerNamePattern.hasMatch(name)) {
+        errors.add('"$where" is not a valid worker name (letters, digits and '
+            '"_", not starting with a digit).');
+      }
+
+      final value = entry.value;
+      if (value is! Map) {
+        errors.add('"$where" must be an object like '
+            '{ "source": "workers/$name.ks" }.');
+        continue;
+      }
+
+      for (final key in value.keys) {
+        if (key != 'source') {
+          errors.add('"$where.$key" is not a recognised property. '
+              'Allowed: source.');
+        }
+      }
+
+      final source = value['source'];
+      if (source == null) {
+        errors.add('"$where.source" is required.');
+      } else if (source is! String || !source.endsWith('.ks')) {
+        errors.add('"$where.source" must be the path of a .ks file '
+            '(got "$source").');
       }
     }
   }

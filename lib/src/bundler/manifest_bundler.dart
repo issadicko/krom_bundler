@@ -13,6 +13,7 @@ import 'manifest_validator.dart';
 import 'module_scope.dart';
 import 'minifier.dart';
 import 'source_map.dart';
+import 'worker_rules.dart';
 
 /// Manifest-based bundler for mini-app projects.
 ///
@@ -55,6 +56,13 @@ class ManifestBundler {
   /// Racines des dépendances .ks déclarées (nom → dossier sous `.krom/deps`),
   /// servies au résolveur d'imports de chaque page.
   Map<String, String> _depRoots = const {};
+
+  /// Ce que chaque worker déclaré offre à `worker.run`. Rempli avant les
+  /// pages, qui y vérifient leurs cibles.
+  Map<String, WorkerExports> _workerExports = const {};
+
+  /// Les noms qu'un worker ne trouvera pas à l'exécution.
+  Set<String> _missingInWorkers = const {};
 
   /// Ce que la duplication des modules a coûté au dernier build. Alimenté au
   /// fil des pages ; lu par `krom build --stats`.
@@ -129,6 +137,7 @@ class ManifestBundler {
       ...declaredWidgets,
       ...KnownLibs.componentsFor(_libPacks),
     }.toList();
+    _missingInWorkers = namesMissingInWorkers(customWidgets: declaredWidgets);
 
     // Dépendances .ks : vérifiées contre krom.lock et les marqueurs
     // d'installation — jamais le réseau. Un état pas prêt s'arrête ici, avec
@@ -167,6 +176,24 @@ class ManifestBundler {
     // that enables on-demand loading, TCMPP/WeChat-style.
     final rawSubpackages = manifest['subpackages'] ?? manifest['subPackages'];
     final pageToSubpackage = _pageToSubpackageRoot(rawSubpackages);
+
+    // Les workers passent avant les pages : une page qui vise
+    // `worker.run("w.f")` se vérifie contre ce que `w` déclare.
+    final workersInput = manifest['workers'] as Map<String, dynamic>? ?? {};
+    final workersOutput = <String, dynamic>{};
+    final workerExports = <String, WorkerExports>{};
+
+    for (final entry in workersInput.entries) {
+      final sourcePath = (entry.value as Map<String, dynamic>)['source'];
+      final bundled =
+          await _bundlePage(p.join(manifestDir, sourcePath), worker: true);
+      workerExports[entry.key] = bundled.exports ?? WorkerExports.empty;
+      workersOutput[entry.key] = {
+        'script': bundled.script,
+        if (bundled.sourceMap != null) 'sourceMap': bundled.sourceMap!.toJson(),
+      };
+    }
+    _workerExports = workerExports;
 
     // Process pages, partitioning compiled output between the main package and
     // each subpackage. A page is never emitted in more than one place.
@@ -260,6 +287,7 @@ class ManifestBundler {
       if (entry != null) 'entry': entry,
       'pages': pagesOutput,
       if (componentsOutput.isNotEmpty) 'components': componentsOutput,
+      if (workersOutput.isNotEmpty) 'workers': workersOutput,
       if (manifest['permissions'] != null)
         'permissions': manifest['permissions'],
       // Les packs de capacité exigés, et la version de SDK minimale. Sans eux
@@ -347,7 +375,11 @@ class ManifestBundler {
   /// `@use`s (resolved transitively, de-duplicated, with circular-import
   /// detection by [Bundler]). Optimisation/minification run once on the
   /// resolved unit.
-  Future<_BundledUnit> _bundlePage(String filePath) async {
+  ///
+  /// Un [worker] suit le même chemin ; seul change ce que son code peut
+  /// atteindre : ni les globaux de la page, ni les libs, ni les widgets.
+  Future<_BundledUnit> _bundlePage(String filePath,
+      {bool worker = false}) async {
     // The inner bundler only resolves @use imports and strips the directives;
     // it does no optimisation itself, so we optimise/minify here exactly once.
     final bundler = _freshBundler();
@@ -360,14 +392,43 @@ class ManifestBundler {
     final sourceMap = bundler.sourceMap;
     var mappable = true;
 
+    // Un bundle qui ne se parse pas est signalé plus bas, par l'optimiseur ou
+    // la validation, avec sa position.
+    final program = _parse(finalSource);
+    WorkerExports? exports;
+    if (program != null) {
+      final problems = worker
+          ? checkWorkerBundle(program, sourceMap, missing: _missingInWorkers)
+          : checkPageBundle(program, sourceMap, workers: _workerExports);
+      if (problems.isNotEmpty) {
+        throw BundlerException(problems.join('\n  '));
+      }
+      if (worker) exports = WorkerExports.of(program);
+    }
+
     if (enableOptimizer) {
-      finalSource = _optimize(finalSource, sourceMap);
+      finalSource = _optimize(finalSource, sourceMap, worker);
       mappable = false;
     }
 
     if (minify) {
       finalSource = _minify(finalSource);
       mappable = false;
+    }
+
+    if (worker) {
+      await bundler.validate(
+        finalSource,
+        modulePrelude: kWorkerPrelude,
+        sourceMap: mappable ? sourceMap : null,
+        pageGlobals: false,
+      );
+      stats.record(filePath, resolvedModules, finalSource);
+      return _BundledUnit(
+        finalSource,
+        emitSourceMap && mappable ? sourceMap : null,
+        exports: exports,
+      );
     }
 
     // Les libs sont connues du binaire : utiliser un de leurs composants sans
@@ -407,7 +468,12 @@ class ManifestBundler {
   ///
   /// [sourceMap] situe les erreurs de syntaxe dans les fichiers du projet :
   /// elle vaut pour [source], qui est encore la concaténation brute.
-  String _optimize(String source, [BundleSourceMap? sourceMap]) {
+  ///
+  /// Les fonctions d'un [worker] ne sont appelées que par leur nom, depuis
+  /// une page : rien dans son bundle ne les référence. L'élagage du code
+  /// « inutilisé » les retirerait toutes.
+  String _optimize(String source,
+      [BundleSourceMap? sourceMap, bool worker = false]) {
     try {
       final lexer = Lexer(source);
       final parser = Parser(lexer);
@@ -421,10 +487,10 @@ class ManifestBundler {
       }
 
       final optimizer = Optimizer(
-          enableTreeShaking: true,
+          enableTreeShaking: !worker,
           enableInlining: true,
           enableConstantPropagation: true,
-          enableDeadCodeElimination: true);
+          enableDeadCodeElimination: !worker);
       final optimizedProgram = optimizer.optimize(program);
       final printer = ASTPrinter();
       return printer.print(optimizedProgram);
@@ -436,13 +502,23 @@ class ManifestBundler {
 
   /// Minify the combined source — string-literal-aware (see [minifyKromSource]).
   String _minify(String source) => minifyKromSource(source);
+
+  /// L'AST de [source], ou null s'il ne se parse pas.
+  Program? _parse(String source) {
+    final parser = Parser(Lexer(source));
+    final program = parser.parseProgram();
+    return parser.errors().isEmpty ? program : null;
+  }
 }
 
-/// Une page ou un composant bundlé, et — en développement seulement — de quoi
-/// resituer ses lignes dans les fichiers du projet.
+/// Une page, un composant ou un worker bundlé, et — en développement seulement —
+/// de quoi resituer ses lignes dans les fichiers du projet.
 class _BundledUnit {
-  _BundledUnit(this.script, this.sourceMap);
+  _BundledUnit(this.script, this.sourceMap, {this.exports});
 
   final String script;
   final BundleSourceMap? sourceMap;
+
+  /// Pour un worker : ce que `worker.run` peut y viser.
+  final WorkerExports? exports;
 }

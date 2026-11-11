@@ -7,7 +7,7 @@
 const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   'arcade': KromLibDescriptor(
     pack: 'arcade',
-    version: '0.1.0',
+    version: '0.2.1',
     components: ['MysteryBox', 'ScratchCard', 'SpinWheel'],
     modules: {
       'play': ['confetti', 'haptic', 'shuffle', 'weightedPick']
@@ -15,7 +15,7 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'charts': KromLibDescriptor(
     pack: 'charts',
-    version: '1.0.0',
+    version: '1.1.1',
     components: [
       'AreaChart',
       'ChartLegend',
@@ -31,7 +31,7 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'media': KromLibDescriptor(
     pack: 'media',
-    version: '1.1.0',
+    version: '1.3.1',
     components: ['CameraButton', 'MediaGrid', 'MediaThumb', 'PhotoView'],
     modules: {
       'media': [
@@ -45,7 +45,7 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'forms': KromLibDescriptor(
     pack: 'forms',
-    version: '1.2.0',
+    version: '1.3.1',
     components: [
       'CurrencyField',
       'Field',
@@ -76,7 +76,7 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'sensors': KromLibDescriptor(
     pack: 'sensors',
-    version: '0.1.0',
+    version: '0.2.1',
     components: [],
     modules: {
       'deviceState': [
@@ -100,11 +100,14 @@ const Map<String, KromLibDescriptor> kKromLibDescriptors = {
   ),
   'nenga_form': KromLibDescriptor(
     pack: 'nenga_form',
-    version: '0.6.2',
+    version: '0.12.1',
     components: ['NengaForm'],
     modules: {
       'nenga': [
+        'catalog',
         'discardDraft',
+        'eligibility',
+        'envelope',
         'fillPlaceholder',
         'latestDraft',
         'loadForm',

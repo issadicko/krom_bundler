@@ -1,4 +1,4 @@
-## Non publié
+## 0.9.0
 
 ### Les workers
 
@@ -44,7 +44,23 @@ d'import ni de nom de dépendance.
 
 Rien à changer dans un projet sans workers : son bundle est identique.
 
-## 0.9.0
+Les workers tournent à partir de kmini_program 1.21.0 : un hôte plus ancien
+ignore `workers`. Une mini-app qui en déclare doit demander
+`"minSdk": "1.21.0"`.
+
+### La préview de `krom dev` passe sur kmini_program 1.21.0
+
+La préview embarquée tournait encore sur le SDK 1.7.0. Elle est reconstruite
+sur 1.21.0 avec les libs à leurs dernières versions : les workers y tournent
+(sur le thread de la page, comme toute app web), avec leurs erreurs ramenées au
+fichier du worker.
+
+### Catalogue des libs à jour
+
+`krom build` et `krom dev` connaissent les libs à leurs dernières versions :
+arcade 0.2.1, charts 1.1.1, forms 1.3.1, media 1.3.1, nenga_form 0.12.1 et
+sensors 0.2.1. `nenga.catalog`, `nenga.eligibility` et `nenga.envelope` ne sont
+plus inconnus à la validation.
 
 ### Une publication ne part plus sous le slug d'une autre app
 
